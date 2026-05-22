@@ -1,0 +1,15 @@
+{
+  "instance_name": "instance_05_dense_medium",
+  "size_category": "medium",
+  "scenario_type": "dense",
+  "feature_flags": {
+    "terrain_enabled": true,
+    "fleet_size_limited": true,
+    "explicit_nfz_enabled": true
+  },
+  "grid": { "x_size": 100, "y_size": 100, "z_size": 30 },
+  "customers": { "count": 45 },
+  "nfz": { "count": 1 },
+  "drone_profile": { "fleet_size": 10 },
+  "generation": { "random_seed": 1005 }
+}

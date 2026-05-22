@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0.0",
+  "units": {
+    "distance": "abstract",
+    "energy": "abstract",
+    "weight": "abstract"
+  },
+  "feature_flags": {
+    "terrain_enabled": true,
+    "fleet_size_limited": false,
+    "collision_avoidance": false,
+    "explicit_nfz_enabled": true
+  },
+  "grid": {
+    "x_size": 100,
+    "y_size": 100,
+    "z_size": 30
+  },
+  "terrain": {
+    "noise_type": "deterministic_value_noise",
+    "octaves": 4,
+    "persistence": 0.5,
+    "lacunarity": 2.0,
+    "scale": 25.0,
+    "max_height_ratio": 0.6,
+    "depot_plateau_radius": 3
+  },
+  "depot": {
+    "placement": "center",
+    "x": null,
+    "y": null
+  },
+  "customers": {
+    "count": 30,
+    "demand_min": 1,
+    "demand_max": 5,
+    "min_separation": 2,
+    "max_placement_retries": 1000
+  },
+  "nfz": {
+    "count": 5,
+    "box_size_min": 3,
+    "box_size_max": 10,
+    "height_min": 3,
+    "height_max": 8,
+    "max_overlap_ratio": 0.0,
+    "max_placement_retries": 500
+  },
+  "drone_profile": {
+    "payload_capacity": 25,
+    "battery_capacity": 500.0,
+    "fleet_size": null,
+    "auto_size_battery": true,
+    "auto_size_payload": true,
+    "battery_slack": 1.5,
+    "target_customers_per_route": 5,
+    "fleet_slack": 1,
+    "target_payload_utilization_min": 0.55,
+    "target_payload_utilization_max": 0.85,
+    "target_battery_utilization_min": 0.45,
+    "target_battery_utilization_max": 0.85
+  },
+  "energy_costs": {
+    "horizontal_rate": 1.0,
+    "vertical_ascend_multiplier": 1.5,
+    "vertical_descend_multiplier": 1.0,
+    "hover_rate": 0.0
+  },
+  "pathfinding": {
+    "enabled": true,
+    "algorithm": "safe_altitude_grid",
+    "connectivity": 26,
+    "clearance": 0,
+    "diagonal_cost": "euclidean",
+    "cache_edge_paths": false
+  },
+  "collision": {
+    "safety_distance": 2
+  },
+  "generation": {
+    "random_seed": 1001,
+    "max_full_retries": 25
+  },
+  "export": {
+    "write_checksum": true,
+    "write_summary": true,
+    "write_validation_report": true
+  }
+}

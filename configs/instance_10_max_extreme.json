@@ -1,0 +1,15 @@
+{
+  "instance_name": "instance_10_max_extreme",
+  "size_category": "large",
+  "scenario_type": "max",
+  "feature_flags": {
+    "terrain_enabled": true,
+    "fleet_size_limited": true,
+    "explicit_nfz_enabled": true
+  },
+  "grid": { "x_size": 200, "y_size": 200, "z_size": 50 },
+  "customers": { "count": 150 },
+  "nfz": { "count": 8 },
+  "drone_profile": { "fleet_size": 30 },
+  "generation": { "random_seed": 1010 }
+}

@@ -1,0 +1,14 @@
+{
+  "instance_name": "instance_01_basic_small",
+  "size_category": "small",
+  "scenario_type": "basic",
+  "feature_flags": {
+    "terrain_enabled": true,
+    "fleet_size_limited": false,
+    "explicit_nfz_enabled": false
+  },
+  "grid": { "x_size": 50, "y_size": 50, "z_size": 20 },
+  "customers": { "count": 12 },
+  "nfz": { "count": 0 },
+  "generation": { "random_seed": 1001 }
+}
