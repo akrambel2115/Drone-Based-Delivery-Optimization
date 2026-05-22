@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Drone Delivery Benchmark Instance",
+  "type": "object",
+  "required": [
+    "metadata",
+    "drone_profile",
+    "energy_costs",
+    "pathfinding",
+    "travel_matrix_node_ids",
+    "travel_cost_matrix",
+    "travel_distance_matrix",
+    "terrain",
+    "depot",
+    "customers",
+    "no_fly_zones",
+    "collision",
+    "baseline_feasible_routes"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["instance_name", "size_category", "scenario_type", "schema_version", "random_seed"]
+    },
+    "drone_profile": {
+      "type": "object",
+      "required": ["payload_capacity", "battery_capacity", "fleet_size"]
+    },
+    "energy_costs": { "type": "object" },
+    "pathfinding": { "type": "object" },
+    "travel_matrix_node_ids": {
+      "type": "array",
+      "items": { "type": "integer" }
+    },
+    "travel_cost_matrix": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "number" }
+      }
+    },
+    "travel_distance_matrix": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "number" }
+      }
+    },
+    "terrain": {
+      "type": "object",
+      "required": ["enabled", "x_size", "y_size", "max_height", "height_map"]
+    },
+    "depot": {
+      "type": "object",
+      "required": ["id", "x", "y", "z"]
+    },
+    "customers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "x", "y", "z", "demand"]
+      }
+    },
+    "no_fly_zones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "x_min", "y_min", "z_min", "x_max", "y_max", "z_max"]
+      }
+    },
+    "collision": {
+      "type": "object",
+      "required": ["enabled", "safety_distance"]
+    },
+    "baseline_feasible_routes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["route_id", "customers", "total_demand", "total_energy"]
+      }
+    }
+  }
+}

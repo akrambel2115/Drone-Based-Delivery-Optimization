@@ -1,0 +1,5 @@
+numpy>=1.26
+jsonschema>=4.21
+matplotlib>=3.8
+plotly>=5.22
+pytest>=8.1
