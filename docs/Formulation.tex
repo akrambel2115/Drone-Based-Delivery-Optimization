@@ -1,0 +1,342 @@
+\documentclass[11pt,a4paper]{article}
+
+% ======================== Packages ========================
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+% ======================== Title ========================
+\title{\textbf{Mathematical Problem Formulation}\\[0.3em]
+\large Drone-Based Delivery Optimization Problem}
+\author{University Group Project}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+% ================================================================
+% SECTION 1: INTRODUCTION AND PREPROCESSING ABSTRACTION
+% ================================================================
+\section{Introduction and Problem Abstraction}
+
+The Drone-Based Delivery Optimization Problem concerns the routing of a fleet of unmanned aerial vehicles (drones) tasked with delivering payloads from a central depot to a set of geographically dispersed customers. The physical environment in which the drones operate is inherently three-dimensional and is subject to spatial constraints imposed by restricted No-Fly Zones (NFZs). Moreover, the energy consumption profile of each drone is anisotropic: horizontal and vertical displacements incur different energy expenditure rates due to aerodynamic and gravitational considerations.
+
+\medskip
+
+\noindent\textbf{Preprocessing Abstraction.}
+Rather than embedding the full geometric complexity of the 3D environment directly into the routing formulation, we abstract it via a \emph{preprocessing phase}. Specifically, for every ordered pair of locations $(i, j)$, we invoke an A* search algorithm over a discretised representation of the 3D airspace to compute the minimum-energy feasible trajectory that avoids all obstacles. The energy cost of this optimal trajectory is recorded as the arc weight~$E_{ij}$.
+
+This preprocessing yields a \emph{complete directed graph}
+\[
+  G = (V, A),
+\]
+where $V = \{0\} \cup C$ is the node set comprised of the depot (indexed as~$0$) and the set of customers~$C = \{1, 2, \ldots, n\}$, and $A = \{(i,j) : i, j \in V,\; i \neq j\}$ is the arc set. The weight $E_{ij}$ associated with each arc $(i,j) \in A$ encapsulates the minimum energy required for a drone to fly from node~$i$ to node~$j$ while respecting all spatial restrictions.
+
+\medskip
+
+Because of this abstraction, the subsequent routing formulations operate solely on graph-theoretic objects---nodes and energy-weighted arcs---without any need to track three-dimensional coordinates or geometric obstacle avoidance within the optimisation model itself. The problem thus reduces to a combinatorial optimisation problem on a weighted directed graph, which we formalise below using two distinct Mixed-Integer Linear Programming (MILP) formulations.
+
+% ================================================================
+% SECTION 2: COMMON NOTATION
+% ================================================================
+\section{Common Notation}
+
+Before presenting the two formulations, we define the notation that is shared across both models.
+
+\subsection{Sets}
+\begin{itemize}
+  \item $C = \{1, 2, \ldots, n\}$: the set of customer nodes.
+  \item $V = \{0\} \cup C$: the set of all nodes, including the depot (node~$0$).
+  \item $A = \{(i,j) : i, j \in V,\; i \neq j\}$: the set of all directed arcs.
+  \item $K = \{1, 2, \ldots, m\}$: the set of available homogeneous drones (used in Formulation~1 only).
+\end{itemize}
+
+\subsection{Parameters}
+\begin{itemize}
+  \item $E_{ij} \ge 0$: the pre-computed minimum energy required to traverse arc $(i,j) \in A$, accounting for obstacle avoidance via the A* algorithm.
+  \item $d_i \ge 0$: the payload demand of customer $i \in C$. By convention, $d_0 = 0$.
+  \item $Q_{\max} > 0$: the maximum payload carrying capacity of each drone (in units of weight).
+  \item $B_{\max} > 0$: the maximum battery capacity of each drone (in units of energy).
+  \item $M$: a sufficiently large constant used in big-M linearisation techniques.
+\end{itemize}
+
+% ================================================================
+% SECTION 3: FORMULATION 1
+% ================================================================
+\section{Formulation 1: Vehicle-Indexed MILP (Classical Approach)}
+
+This formulation models the problem as a \emph{Capacitated Vehicle Routing Problem with Energy Constraints} (CVRP-E). It employs a vehicle-indexed binary routing variable and uses Miller--Tucker--Zemlin (MTZ) style constraints to simultaneously track cumulative payload delivery and eliminate subtours. Each drone is modelled explicitly via an index $k \in K$.
+
+\subsection{Decision Variables}
+\begin{itemize}
+  \item $x_{ijk} \in \{0, 1\}$: equals~$1$ if drone~$k \in K$ traverses arc $(i,j) \in A$, and~$0$ otherwise.
+  \item $u_{ik} \ge 0$: the cumulative payload that drone~$k$ has delivered upon departing node $i \in V$. This auxiliary variable serves a dual purpose: it tracks capacity feasibility and eliminates subtours.
+  \item $b_{ik} \ge 0$: the cumulative energy consumed by drone~$k$ upon its arrival at node $i \in V$.
+\end{itemize}
+
+\subsection{Objective Function}
+
+The objective is to minimise the total energy consumed by the entire fleet across all active arcs:
+\begin{equation}
+  \min \quad Z = \sum_{k \in K} \sum_{(i,j) \in A} E_{ij} \, x_{ijk}
+  \label{eq:f1_obj}
+\end{equation}
+
+This linear objective aggregates, for each drone $k$, the energy expenditure incurred on every arc that drone~$k$ actually traverses.
+
+\subsection{Constraints}
+
+\subsubsection{Customer Visitation (Assignment)}
+\begin{equation}
+  \sum_{k \in K} \sum_{i \in V \setminus \{j\}} x_{ijk} = 1, \quad \forall\, j \in C
+  \label{eq:f1_visit}
+\end{equation}
+
+Constraint~\eqref{eq:f1_visit} ensures that every customer $j \in C$ is visited \emph{exactly once} by \emph{exactly one} drone. This is the fundamental assignment requirement: no customer may be left unserved, and no customer may receive redundant service.
+
+\subsubsection{Flow Conservation}
+\begin{equation}
+  \sum_{i \in V \setminus \{h\}} x_{ihk} = \sum_{j \in V \setminus \{h\}} x_{hjk}, \quad \forall\, h \in C,\; \forall\, k \in K
+  \label{eq:f1_flow}
+\end{equation}
+
+Constraint~\eqref{eq:f1_flow} enforces flow conservation at every customer node: if drone~$k$ enters customer~$h$, it must also leave customer~$h$. This prevents a drone from ``disappearing'' at an intermediate node and guarantees the continuity of each route.
+
+\subsubsection{Depot Departure Limit}
+\begin{equation}
+  \sum_{j \in C} x_{0jk} \le 1, \quad \forall\, k \in K
+  \label{eq:f1_depot}
+\end{equation}
+
+Constraint~\eqref{eq:f1_depot} stipulates that each drone departs from the depot \emph{at most once}. A drone for which this constraint is tight ($= 1$) is active and services a route; otherwise it remains idle. Combined with the flow conservation constraints, this also implies that an active drone must eventually return to the depot.
+
+\subsubsection{Payload Tracking and Subtour Elimination (MTZ)}
+\begin{equation}
+  u_{ik} + d_j \le u_{jk} + M(1 - x_{ijk}), \quad \forall\, (i,j) \in A,\; j \in C,\; \forall\, k \in K
+  \label{eq:f1_mtz}
+\end{equation}
+
+Constraint~\eqref{eq:f1_mtz} is a lifted Miller--Tucker--Zemlin inequality that serves two purposes simultaneously. First, when arc $(i,j)$ is used by drone~$k$ (i.e., $x_{ijk} = 1$), it enforces $u_{jk} \ge u_{ik} + d_j$, correctly incrementing the cumulative delivered payload by the demand $d_j$ of the newly visited customer~$j$. Second, the monotonically increasing nature of the $u$ variables over the sequence of visited nodes renders any subtour (a cycle that does not include the depot) infeasible, because such a cycle would require the cumulative load to simultaneously increase along every arc in the cycle---a contradiction. When $x_{ijk} = 0$, the big-M deactivates the constraint.
+
+\subsubsection{Payload Capacity Bound}
+\begin{equation}
+  u_{ik} \le Q_{\max}, \quad \forall\, i \in V,\; \forall\, k \in K
+  \label{eq:f1_cap}
+\end{equation}
+
+Constraint~\eqref{eq:f1_cap} ensures that the cumulative payload delivered by any drone~$k$ never exceeds the maximum carrying capacity $Q_{\max}$. Since the drone departs the depot carrying all the payload it will deliver on its route, this bound guarantees physical feasibility of the load.
+
+\subsubsection{Energy Tracking}
+\begin{equation}
+  b_{ik} + E_{ij} \le b_{jk} + M(1 - x_{ijk}), \quad \forall\, (i,j) \in A,\; \forall\, k \in K
+  \label{eq:f1_energy}
+\end{equation}
+
+Constraint~\eqref{eq:f1_energy} tracks the cumulative energy consumed by drone~$k$ along its route. When arc $(i,j)$ is active ($x_{ijk} = 1$), the constraint enforces $b_{jk} \ge b_{ik} + E_{ij}$, recording that the battery state upon arrival at~$j$ reflects the energy expended in flying from~$i$ to~$j$. The initial condition $b_{0k} = 0$ (the drone starts fully charged at the depot) is implicitly enforced by the non-negativity of the $b$ variables and the structure of the constraints.
+
+\subsubsection{Battery Capacity and Safe Return}
+\begin{equation}
+  b_{ik} + E_{i0} \le B_{\max}, \quad \forall\, i \in V,\; \forall\, k \in K
+  \label{eq:f1_battery}
+\end{equation}
+
+Constraint~\eqref{eq:f1_battery} is a \emph{safe return} guarantee. It ensures that at any node~$i$ along its route, drone~$k$ retains sufficient residual energy to fly directly back to the depot. Specifically, the cumulative energy consumed up to node~$i$ plus the energy required for the direct return arc $(i, 0)$ must not exceed the total battery capacity $B_{\max}$. This prevents any drone from becoming stranded in the field.
+
+\subsection{Complete Model Summary}
+
+The complete Vehicle-Indexed MILP is stated compactly as:
+\begin{align}
+  \min \quad & \sum_{k \in K} \sum_{(i,j) \in A} E_{ij} \, x_{ijk} \label{eq:f1_full_obj}\\[6pt]
+  \text{s.t.} \quad & \sum_{k \in K} \sum_{i \in V \setminus \{j\}} x_{ijk} = 1, & \forall\, j \in C \label{eq:f1_full_visit}\\
+  & \sum_{i \in V \setminus \{h\}} x_{ihk} = \sum_{j \in V \setminus \{h\}} x_{hjk}, & \forall\, h \in C,\; k \in K \label{eq:f1_full_flow}\\
+  & \sum_{j \in C} x_{0jk} \le 1, & \forall\, k \in K \label{eq:f1_full_depot}\\
+  & u_{ik} + d_j \le u_{jk} + M(1 - x_{ijk}), & \forall\, (i,j) \in A,\; j \in C,\; k \in K \label{eq:f1_full_mtz}\\
+  & u_{ik} \le Q_{\max}, & \forall\, i \in V,\; k \in K \label{eq:f1_full_cap}\\
+  & b_{ik} + E_{ij} \le b_{jk} + M(1 - x_{ijk}), & \forall\, (i,j) \in A,\; k \in K \label{eq:f1_full_energy}\\
+  & b_{ik} + E_{i0} \le B_{\max}, & \forall\, i \in V,\; k \in K \label{eq:f1_full_battery}\\
+  & x_{ijk} \in \{0, 1\}, & \forall\, (i,j) \in A,\; k \in K \label{eq:f1_full_bin}\\
+  & u_{ik} \ge 0,\; b_{ik} \ge 0, & \forall\, i \in V,\; k \in K \label{eq:f1_full_cont}
+\end{align}
+
+\subsection{Remarks on Formulation 1}
+
+The vehicle-indexed formulation is conceptually straightforward and widely employed in the VRP literature. Its primary disadvantage lies in \emph{symmetry}: if the fleet is homogeneous, then any permutation of drone indices across identical routes yields an equivalent solution. This symmetry inflates the branch-and-bound search tree and degrades solver performance. The number of binary variables scales as $\mathcal{O}(|V|^2 \cdot |K|)$, which can become computationally prohibitive for large instances.
+
+% ================================================================
+% SECTION 4: FORMULATION 2
+% ================================================================
+\section{Formulation 2: Two-Commodity Network Flow}
+
+To address the symmetry issues inherent in the vehicle-indexed model, we present an alternative formulation that is \emph{vehicle-agnostic}. This model removes the drone index entirely and instead models the payload and accumulated energy as \emph{commodity flows} through the network. The key insight is that, for a homogeneous fleet, we need not distinguish \emph{which} drone services each route---only that each route satisfies capacity and energy constraints.
+
+The term ``Two-Commodity'' refers to the two continuous flow variables associated with each arc: one tracking payload and one tracking cumulative energy.
+
+\subsection{Decision Variables}
+\begin{itemize}
+  \item $x_{ij} \in \{0, 1\}$: equals~$1$ if \emph{any} drone traverses arc $(i,j) \in A$, and~$0$ otherwise.
+  \item $F_{ij} \ge 0$: the flow of payload weight along arc $(i,j) \in A$. This represents the remaining payload that a drone carries as it traverses arc $(i,j)$.
+  \item $Q_{ij} \ge 0$: the flow of accumulated energy consumed along arc $(i,j) \in A$. This represents the cumulative battery expenditure of the drone traversing arc $(i,j)$ at the point of departure from node~$i$.
+\end{itemize}
+
+\subsection{Objective Function}
+\begin{equation}
+  \min \quad Z = \sum_{(i,j) \in A} E_{ij} \, x_{ij}
+  \label{eq:f2_obj}
+\end{equation}
+
+The objective minimises the total energy consumed across all active arcs in the network, summed over all routes. Since the formulation is vehicle-agnostic, there is no drone index; each active arc contributes its energy cost exactly once.
+
+\subsection{Constraints}
+
+\subsubsection{Degree Constraints}
+\begin{align}
+  \sum_{i \in V \setminus \{j\}} x_{ij} &= 1, \quad \forall\, j \in C \label{eq:f2_indeg}\\[4pt]
+  \sum_{j \in V \setminus \{i\}} x_{ij} &= 1, \quad \forall\, i \in C \label{eq:f2_outdeg}
+\end{align}
+
+Constraints~\eqref{eq:f2_indeg} and~\eqref{eq:f2_outdeg} impose that every customer node has exactly one incoming arc and exactly one outgoing arc. Together, they ensure that each customer is visited precisely once and that the network decomposes into a collection of node-disjoint directed cycles, each passing through the depot.
+
+\subsubsection{Payload Flow Balance}
+\begin{equation}
+  \sum_{i \in V \setminus \{j\}} F_{ij} - \sum_{i \in V \setminus \{j\}} F_{ji} = d_j, \quad \forall\, j \in C
+  \label{eq:f2_payload_balance}
+\end{equation}
+
+Constraint~\eqref{eq:f2_payload_balance} enforces payload conservation at every customer node. The total payload flowing \emph{into} customer~$j$ minus the total payload flowing \emph{out} of customer~$j$ equals the demand~$d_j$ that is delivered at that node. This ensures that each drone's carried weight decreases by exactly $d_j$ upon servicing customer~$j$. Crucially, this flow-balance structure also serves as a subtour elimination mechanism: a subtour disconnected from the depot cannot sustain a feasible flow, since there would be no source of payload to satisfy the positive demands.
+
+\subsubsection{Payload Capacity Binding}
+\begin{equation}
+  F_{ij} \le Q_{\max} \cdot x_{ij}, \quad \forall\, (i,j) \in A
+  \label{eq:f2_payload_cap}
+\end{equation}
+
+Constraint~\eqref{eq:f2_payload_cap} performs two functions. First, it ensures that payload can only flow along arcs that are actually traversed ($x_{ij} = 1$); if an arc is inactive ($x_{ij} = 0$), then $F_{ij} = 0$. Second, it bounds the payload on any single arc by the drone's maximum carrying capacity $Q_{\max}$, guaranteeing physical feasibility.
+
+\subsubsection{Energy Flow Balance}
+\begin{equation}
+  \sum_{i \in V \setminus \{j\}} Q_{ji} - \sum_{i \in V \setminus \{j\}} Q_{ij} = \sum_{i \in V \setminus \{j\}} E_{ji} \, x_{ji}, \quad \forall\, j \in C
+  \label{eq:f2_energy_balance}
+\end{equation}
+
+Constraint~\eqref{eq:f2_energy_balance} enforces energy accumulation at each customer node. The total accumulated energy flowing \emph{out} of node~$j$ minus the total accumulated energy flowing \emph{into} node~$j$ equals the energy cost of the arc by which the drone arrived at~$j$. This correctly models the fact that as a drone progresses along its route, its cumulative energy expenditure increases by the cost of each traversed arc.
+
+\subsubsection{Battery Capacity Binding}
+\begin{equation}
+  Q_{ij} \le B_{\max} \cdot x_{ij}, \quad \forall\, (i,j) \in A
+  \label{eq:f2_battery_cap}
+\end{equation}
+
+Constraint~\eqref{eq:f2_battery_cap} mirrors the logic of the payload capacity binding. It restricts energy flow to active arcs and ensures that the cumulative energy recorded on any arc does not exceed the total battery capacity $B_{\max}$. This prevents any infeasible energy accumulation from propagating through the network.
+
+\subsubsection{Safe Return Battery Limit}
+\begin{equation}
+  Q_{ij} + E_{j0} \cdot x_{ij} \le B_{\max} \cdot x_{ij}, \quad \forall\, (i,j) \in A
+  \label{eq:f2_safe_return}
+\end{equation}
+
+Constraint~\eqref{eq:f2_safe_return} is the analogue of the safe return constraint in Formulation~1. For every active arc $(i,j)$, it ensures that the accumulated energy upon arrival at node~$j$ (captured by $Q_{ij}$) plus the energy required to fly directly from~$j$ back to the depot ($E_{j0}$) does not exceed the battery capacity $B_{\max}$. This guarantees that at every point along its route, a drone can safely abort and return to base. When $x_{ij} = 0$, both sides reduce to zero and the constraint is trivially satisfied.
+
+\subsection{Complete Model Summary}
+
+The complete Two-Commodity Network Flow MILP is stated compactly as:
+\begin{align}
+  \min \quad & \sum_{(i,j) \in A} E_{ij} \, x_{ij} \label{eq:f2_full_obj}\\[6pt]
+  \text{s.t.} \quad & \sum_{i \in V \setminus \{j\}} x_{ij} = 1, & \forall\, j \in C \label{eq:f2_full_indeg}\\
+  & \sum_{j \in V \setminus \{i\}} x_{ij} = 1, & \forall\, i \in C \label{eq:f2_full_outdeg}\\
+  & \sum_{i \in V \setminus \{j\}} F_{ij} - \sum_{i \in V \setminus \{j\}} F_{ji} = d_j, & \forall\, j \in C \label{eq:f2_full_payload}\\
+  & F_{ij} \le Q_{\max} \cdot x_{ij}, & \forall\, (i,j) \in A \label{eq:f2_full_pcap}\\
+  & \sum_{i \in V \setminus \{j\}} Q_{ji} - \sum_{i \in V \setminus \{j\}} Q_{ij} = \sum_{i \in V \setminus \{j\}} E_{ji} \, x_{ji}, & \forall\, j \in C \label{eq:f2_full_energy}\\
+  & Q_{ij} \le B_{\max} \cdot x_{ij}, & \forall\, (i,j) \in A \label{eq:f2_full_bcap}\\
+  & Q_{ij} + E_{j0} \cdot x_{ij} \le B_{\max} \cdot x_{ij}, & \forall\, (i,j) \in A \label{eq:f2_full_safe}\\
+  & x_{ij} \in \{0, 1\}, & \forall\, (i,j) \in A \label{eq:f2_full_bin}\\
+  & F_{ij} \ge 0,\; Q_{ij} \ge 0, & \forall\, (i,j) \in A \label{eq:f2_full_cont}
+\end{align}
+
+\subsection{Remarks on Formulation 2}
+
+The Two-Commodity Network Flow formulation offers several advantages over the vehicle-indexed model:
+
+\begin{itemize}
+  \item \textbf{Symmetry elimination.} By removing the drone index~$k$, the model avoids the combinatorial explosion of equivalent solutions that arise from permuting drone labels.
+  \item \textbf{Reduced variable count.} The number of binary variables is $\mathcal{O}(|V|^2)$---independent of the fleet size $|K|$.
+  \item \textbf{Tighter LP relaxation.} Flow-based subtour elimination constraints typically yield stronger linear programming relaxation bounds compared to MTZ inequalities, potentially accelerating the branch-and-bound process.
+  \item \textbf{Natural decomposition.} The flow structure lends itself to decomposition methods (e.g., Dantzig--Wolfe decomposition or column generation) for large-scale instances.
+\end{itemize}
+
+\noindent The principal trade-off is that individual drone routes are not directly encoded in the solution variables; a post-processing decomposition step is required to extract individual routes from the aggregate arc and flow solutions.
+
+% ================================================================
+% SECTION 5: COMPARATIVE DISCUSSION
+% ================================================================
+\section{Comparative Discussion}
+
+Table~\ref{tab:comparison} summarises the structural differences between the two formulations.
+
+\begin{table}[ht]
+\centering
+\caption{Structural comparison of the two MILP formulations.}
+\label{tab:comparison}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Property} & \textbf{Vehicle-Indexed (F1)} & \textbf{Two-Commodity Flow (F2)} \\
+\midrule
+Binary variables & $\mathcal{O}(|V|^2 |K|)$ & $\mathcal{O}(|V|^2)$ \\
+Continuous variables & $\mathcal{O}(|V| |K|)$ & $\mathcal{O}(|V|^2)$ \\
+Subtour elimination & MTZ (node-based) & Flow balance (arc-based) \\
+Symmetry & Present (drone permutations) & Eliminated \\
+Route identification & Direct (via $x_{ijk}$) & Requires post-processing \\
+LP relaxation quality & Weaker (MTZ) & Stronger (flow-based) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both formulations are valid representations of the same underlying Capacitated VRP with Energy Constraints. The choice between them depends on the instance size, the solver employed, and whether solution interpretability (Formulation~1) or computational efficiency (Formulation~2) is prioritised.
+
+% ================================================================
+% SECTION 6: SET PARTITIONING DISCUSSION
+% ================================================================
+\subsection{Discussion: The Set Partitioning Formulation}
+
+Both compact formulations presented above---the Vehicle-Indexed MILP and the Two-Commodity Network Flow---model the routing problem using polynomial-size encodings of arc-level decisions. A fundamentally different modelling paradigm exists in the Operations Research literature: the \emph{Set Partitioning} (SP) formulation, which reasons directly over the space of \emph{complete feasible routes} rather than individual arcs. We present this formulation here as a theoretical reference point, and subsequently justify its exclusion from our implementation.
+
+\subsubsection{Notation and Model}
+
+Let $\Omega$ denote the set of \emph{all} feasible single-drone routes. A route $r \in \Omega$ is a directed path that departs from the depot (node~$0$), visits a subset of customers $S_r \subseteq C$, and returns to the depot, while satisfying both the payload capacity constraint ($\sum_{i \in S_r} d_i \le Q_{\max}$) and the battery constraint (the cumulative energy consumed along the route, including the return arc, does not exceed $B_{\max}$). We associate the following data with each route:
+
+\begin{itemize}
+  \item $a_{ir} \in \{0, 1\}$: equals~$1$ if customer $i \in C$ is visited in route $r \in \Omega$, and~$0$ otherwise.
+  \item $C_r \ge 0$: the total energy cost of route $r$, computed as $C_r = \sum_{(i,j) \in r} E_{ij}$, i.e., the sum of pre-computed arc energies along the route.
+\end{itemize}
+
+\noindent The single decision variable is:
+\begin{itemize}
+  \item $y_r \in \{0, 1\}$: equals~$1$ if route $r \in \Omega$ is selected in the optimal solution, and~$0$ otherwise.
+\end{itemize}
+
+\noindent The Set Partitioning formulation is then:
+\begin{align}
+  \min \quad & \sum_{r \in \Omega} C_r \, y_r \label{eq:sp_obj}\\[6pt]
+  \text{s.t.} \quad & \sum_{r \in \Omega} a_{ir} \, y_r = 1, & \forall\, i \in C \label{eq:sp_cover}\\
+  & y_r \in \{0, 1\}, & \forall\, r \in \Omega \label{eq:sp_bin}
+\end{align}
+
+The objective~\eqref{eq:sp_obj} minimises the total energy cost of all selected routes. Constraint~\eqref{eq:sp_cover} is the \emph{exact covering} (partitioning) requirement: it ensures that every customer $i \in C$ appears in exactly one selected route, thereby guaranteeing complete and non-redundant service. The constraint matrix $[a_{ir}]$ is a binary matrix with one row per customer and one column per feasible route; the partitioning constraints demand that the selected columns form an exact cover of all rows.
+
+\subsubsection{Theoretical Significance}
+
+The Set Partitioning formulation is widely regarded as the theoretical ``gold standard'' in the modern vehicle routing literature. Its structural advantages over the compact formulations are profound. The LP relaxation of~\eqref{eq:sp_obj}--\eqref{eq:sp_bin} is exceptionally \emph{tight}: the fractional optimum of the relaxed problem typically lies very close to the integer optimum, yielding small integrality gaps. This stands in sharp contrast to Formulation~1, whose Miller--Tucker--Zemlin constraints are known to produce weak LP relaxation bounds, and even to Formulation~2, whose flow-based relaxation, while stronger, still cannot match the quality of the SP bound in general.
+
+The source of this strength is that all combinatorial structure---subtour elimination, payload feasibility, and battery feasibility---is \emph{pre-encoded} in the definition of the feasible route set $\Omega$. There is no need for auxiliary continuous variables, no need for Big-M linearisation, and no vehicle symmetry to resolve: each column $r \in \Omega$ is an anonymous, self-contained feasible route. The model is therefore free of the modelling artefacts that weaken the relaxations of compact formulations.
+
+\subsubsection{Justification for Exclusion from Implementation}
+
+Despite its theoretical elegance, the Set Partitioning formulation was deliberately excluded from our two primary implemented models. The fundamental obstacle is \emph{computational tractability}: the cardinality of the feasible route set $|\Omega|$ grows \emph{exponentially} with the number of customers $|C|$. Even for moderately sized instances, explicitly enumerating all feasible routes is computationally infeasible.
+
+In practice, the SP formulation is solved via \emph{Column Generation} (CG), embedded within a Branch-and-Bound framework to yield a \emph{Branch-and-Price} algorithm. In this scheme, only a small subset of promising columns (routes) is maintained at any iteration, and new columns are generated on-the-fly by solving an NP-hard \emph{pricing subproblem}---typically a resource-constrained shortest path problem on the graph $G$. The pricing subproblem must itself be solved by specialised dynamic programming algorithms with resource extension functions.
+
+Implementing a complete Branch-and-Price framework from scratch---including the master LP management, the pricing oracle, branching strategies compatible with the column generation structure (e.g., branching on arc variables rather than route variables to preserve pricing subproblem structure), and the associated bookkeeping---constitutes a substantial software engineering effort that falls strictly outside the feasible scope and timeline of a three-week academic project. We therefore retain this formulation as a theoretical benchmark and pursue the two compact formulations for our computational experiments.
+
+\end{document}
