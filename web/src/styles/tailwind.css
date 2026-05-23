@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-base: #020617;
+    --bg-surface: #0f172a;
+    --bg-elevated: #1e293b;
+    --border: #334155;
+    --text-primary: #f1f5f9;
+    --text-muted: #94a3b8;
+    --accent: #00f5ff;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Inter', ui-sans-serif, system-ui;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg-surface);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-slate-800 border border-slate-700 rounded-lg;
+  }
+
+  .tile {
+    @apply bg-slate-800 border border-slate-700 rounded-lg p-3;
+  }
+
+  .label {
+    @apply text-xs font-medium text-slate-400 uppercase tracking-wider;
+  }
+
+  .stat-value {
+    @apply font-mono text-lg font-semibold text-slate-100;
+  }
+
+  .btn-primary {
+    @apply bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold rounded-lg
+           px-4 py-2 transition-colors duration-150 disabled:opacity-50
+           disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply text-slate-400 hover:text-slate-100 hover:bg-slate-700 rounded-lg
+           px-3 py-1.5 text-sm transition-colors duration-150;
+  }
+
+  .input {
+    @apply bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm
+           text-slate-100 focus:outline-none focus:border-cyan-500
+           focus:ring-1 focus:ring-cyan-500 transition-colors;
+  }
+
+  .select {
+    @apply bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm
+           text-slate-100 focus:outline-none focus:border-cyan-500
+           focus:ring-1 focus:ring-cyan-500 transition-colors cursor-pointer;
+  }
+
+  .neon-text {
+    color: #00f5ff;
+    text-shadow: 0 0 8px rgba(0, 245, 255, 0.5);
+  }
+
+  .badge-success {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium
+           bg-emerald-500/20 text-emerald-400 border border-emerald-500/30;
+  }
+
+  .badge-warning {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium
+           bg-amber-500/20 text-amber-400 border border-amber-500/30;
+  }
+
+  .badge-error {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium
+           bg-red-500/20 text-red-400 border border-red-500/30;
+  }
+}
