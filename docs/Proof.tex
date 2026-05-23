@@ -1,0 +1,127 @@
+\documentclass[11pt,a4paper]{article}
+
+% ======================== Packages ========================
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+% ======================== Theorem Environment ========================
+\newtheorem{theorem}{Theorem}
+
+% ======================== Title ========================
+\title{\textbf{Computational Complexity Study}\\[0.3em]
+\large Drone-Based Delivery Optimization Problem}
+\author{University Group Project}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+% ================================================================
+% SECTION: COMPUTATIONAL COMPLEXITY STUDY
+% ================================================================
+\section{Computational Complexity Study}
+
+In this section, we establish the computational intractability of the Drone-Based Delivery Optimization Problem by proving that it belongs to the class of NP-hard problems. This result confirms that no polynomial-time algorithm is expected to exist for solving the problem to optimality in the general case (unless $\text{P} = \text{NP}$), thereby motivating the use of exact MILP solvers with exponential worst-case running time, as well as heuristic and metaheuristic approaches for large-scale instances.
+
+\subsection{Formal Statement}
+
+\begin{theorem}\label{thm:nphard}
+The Drone-Based Delivery Optimization Problem is NP-hard.
+\end{theorem}
+
+\subsection{Proof}
+
+\begin{proof}
+The proof proceeds by \textbf{restriction}: we show that a known strongly NP-hard problem is a strict special case of the Drone-Based Delivery Optimization Problem. Since solving the general problem is at least as difficult as solving any of its special cases, NP-hardness of the special case implies NP-hardness of the general problem.
+
+\medskip
+
+\noindent\textbf{Step 1: The Known NP-hard Problem.}\quad
+We select the classical \textbf{Capacitated Vehicle Routing Problem (CVRP)} as our reference problem. In the CVRP, we are given a set of customers $C = \{1, 2, \ldots, n\}$ located in the Euclidean plane $\mathbb{R}^2$, a central depot (node~$0$), a fleet of identical vehicles, and a maximum vehicle payload capacity $Q > 0$. Each customer $i \in C$ has a non-negative demand $d_i$, and the cost of traversing an arc $(i,j)$ is the 2D Euclidean distance
+\[
+  d(i,j) = \sqrt{(x_i - x_j)^2 + (y_i - y_j)^2}.
+\]
+The objective is to determine a set of routes, each beginning and ending at the depot, such that every customer is visited exactly once, the total demand served on each route does not exceed $Q$, and the total travel distance across all routes is minimised. The CVRP is known to be strongly NP-hard, as established by its reduction from the Bin Packing Problem and the Travelling Salesman Problem.
+
+\medskip
+
+\noindent\textbf{Step 2: Polynomial-Time Reduction by Restriction.}\quad
+We now construct a mapping from an arbitrary instance $\mathcal{I}_{\text{CVRP}}$ of the CVRP to a specific instance $\mathcal{I}_{\text{Drone}}$ of our Drone-Based Delivery Optimization Problem by imposing the following parameter restrictions:
+
+\begin{enumerate}
+  \item \textbf{Flattening the 3D airspace.}\quad
+    For every node $i \in V = \{0\} \cup C$, set its three-dimensional coordinate to $(x_i, y_i, 0)$, where $(x_i, y_i)$ is the original 2D position in the CVRP instance. That is, the altitude ($Z$-coordinate) of every node is fixed to zero:
+    \[
+      z_i = 0, \quad \forall\, i \in V.
+    \]
+
+  \item \textbf{Eliminating No-Fly Zones.}\quad
+    Set the collection of restricted airspace regions (No-Fly Zones) to the empty set:
+    \[
+      \mathcal{NFZ} = \emptyset.
+    \]
+    With no obstacles present, the minimum-energy trajectory between any two nodes is a straight-line segment, and the A* preprocessing reduces to direct point-to-point computation.
+
+  \item \textbf{Collapsing the energy model.}\quad
+    Set the horizontal energy cost rate to unity and the vertical energy cost rate to zero:
+    \[
+      \alpha_{\text{horizontal}} = 1, \qquad \alpha_{\text{vertical}} = 0.
+    \]
+    Since all nodes lie at altitude zero and the airspace is obstacle-free, the pre-computed energy cost of every arc reduces exactly to the 2D Euclidean distance:
+    \[
+      E_{ij} = \alpha_{\text{horizontal}} \cdot d(i,j) + \alpha_{\text{vertical}} \cdot 0 = d(i,j), \quad \forall\, (i,j) \in A.
+    \]
+
+  \item \textbf{Relaxing the battery constraint.}\quad
+    Set the drone battery capacity to infinity:
+    \[
+      B_{\max} = \infty.
+    \]
+    This renders the battery capacity constraint and the safe-return constraint trivially satisfied for all routes, effectively removing energy-range limitations from the problem.
+
+  \item \textbf{Matching the payload capacity.}\quad
+    Set the drone payload capacity equal to the CVRP vehicle capacity:
+    \[
+      Q_{\max} = Q.
+    \]
+\end{enumerate}
+
+\noindent This transformation is clearly computable in polynomial time---indeed, in $\mathcal{O}(|V|)$ time---since it involves only direct assignment of parameter values without any combinatorial computation.
+
+\medskip
+
+\noindent\textbf{Step 3: Establishing Equivalence.}\quad
+Under the restrictions imposed in Step~2, the Drone-Based Delivery Optimization Problem instance $\mathcal{I}_{\text{Drone}}$ reduces to the following: find a set of routes from depot~$0$ that visits every customer exactly once, such that the total demand on each route does not exceed $Q_{\max} = Q$, and the total energy $\sum E_{ij} = \sum d(i,j)$ is minimised. The battery constraint $B_{\max} = \infty$ is vacuous, and the absence of obstacles and vertical displacement eliminates all 3D-specific complexity.
+
+This is \emph{identically} the CVRP instance $\mathcal{I}_{\text{CVRP}}$:
+\begin{itemize}
+  \item The feasible region of $\mathcal{I}_{\text{Drone}}$ coincides exactly with the feasible region of $\mathcal{I}_{\text{CVRP}}$, since the only binding constraint is the payload capacity $Q$.
+  \item The objective function of $\mathcal{I}_{\text{Drone}}$ (minimise total energy) evaluates identically to the objective function of $\mathcal{I}_{\text{CVRP}}$ (minimise total distance), since $E_{ij} = d(i,j)$ for all arcs.
+\end{itemize}
+
+\noindent Consequently, a solution is optimal for $\mathcal{I}_{\text{Drone}}$ if and only if it is optimal for $\mathcal{I}_{\text{CVRP}}$. Any algorithm that solves the Drone-Based Delivery Optimization Problem in its full generality could, in particular, solve this restricted instance and thereby solve the CVRP.
+
+\medskip
+
+\noindent\textbf{Step 4: Conclusion.}\quad
+We have shown that the CVRP---a known strongly NP-hard problem---is a strict special case of the Drone-Based Delivery Optimization Problem, obtainable via a polynomial-time parameter restriction. By the transitivity of polynomial-time reductions, any polynomial-time algorithm for the Drone-Based Delivery Optimization Problem would imply a polynomial-time algorithm for the CVRP, contradicting its established NP-hardness (unless $\text{P} = \text{NP}$).
+
+Therefore, the Drone-Based Delivery Optimization Problem is \textbf{NP-hard}.\qedhere
+\end{proof}
+
+\subsection{Implications}
+
+The NP-hardness result carries several practical implications for our project:
+
+\begin{itemize}
+  \item \textbf{Exact methods.} The MILP formulations presented in the preceding sections can be solved to provable optimality using branch-and-bound solvers, but their worst-case running time is exponential in the input size. This is expected and unavoidable for NP-hard problems.
+  \item \textbf{Scalability.} For large instances with many customers, exact solution may become computationally prohibitive within practical time limits, necessitating the development of heuristic or metaheuristic algorithms (e.g., genetic algorithms, simulated annealing, or adaptive large neighbourhood search).
+  \item \textbf{Hardness amplification.} Our general problem is, in fact, \emph{strictly harder} than the classical CVRP, since it incorporates additional constraints---three-dimensional obstacle avoidance and finite battery capacity---that are absent in the CVRP. The NP-hardness proof by restriction confirms a \emph{lower bound} on the problem's complexity; the additional constraints can only increase the difficulty.
+\end{itemize}
+
+\end{document}
