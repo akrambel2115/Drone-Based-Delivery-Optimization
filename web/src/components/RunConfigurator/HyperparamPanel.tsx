@@ -30,6 +30,12 @@ export const SA_DEFAULTS = {
 
 export type GAConfig = typeof GA_DEFAULTS
 export type SAConfig = typeof SA_DEFAULTS
+export type BBConfig = typeof BB_DEFAULTS
+
+export const BB_DEFAULTS = {
+  greedy_initialization: true,
+  record_history: true,
+}
 
 // ---- Presets ----
 
@@ -43,6 +49,10 @@ const SA_PRESETS = {
   Faster: { ...SA_DEFAULTS, initial_temperature: 50, max_iterations: 10000, inner_iterations: 100 },
   Better: { ...SA_DEFAULTS, initial_temperature: 200, cooling_rate: 0.98, inner_iterations: 500, max_iterations: 200000 },
   Reproducible: { ...SA_DEFAULTS, random_seed: 42 },
+}
+
+const BB_PRESETS = {
+  Default: BB_DEFAULTS,
 }
 
 // ---- Slider config ----
@@ -74,12 +84,16 @@ const SA_SLIDERS: SliderSpec[] = [
   { key: 'min_temperature', label: 'Min temperature', tip: 'Search stops when temperature falls below this value.', min: 0.001, max: 5, step: 0.001, format: (v) => v.toFixed(3) },
 ]
 
+const BB_SLIDERS: SliderSpec[] = []
+
 interface Props {
   algorithm: Algorithm
   gaConfig: GAConfig
   saConfig: SAConfig
+  bbConfig: BBConfig
   onGaChange: (c: GAConfig) => void
   onSaChange: (c: SAConfig) => void
+  onBbChange: (c: BBConfig) => void
 }
 
 function SliderRow({
@@ -114,15 +128,16 @@ function SliderRow({
   )
 }
 
-export function HyperparamPanel({ algorithm, gaConfig, saConfig, onGaChange, onSaChange }: Props) {
-  const sliders = algorithm === 'ga' ? GA_SLIDERS : SA_SLIDERS
-  const config = algorithm === 'ga' ? gaConfig : saConfig
-  const defaults = algorithm === 'ga' ? GA_DEFAULTS : SA_DEFAULTS
-  const presets = algorithm === 'ga' ? GA_PRESETS : SA_PRESETS
+export function HyperparamPanel({ algorithm, gaConfig, saConfig, bbConfig, onGaChange, onSaChange, onBbChange }: Props) {
+  const sliders = algorithm === 'ga' ? GA_SLIDERS : algorithm === 'sa' ? SA_SLIDERS : BB_SLIDERS
+  const config = algorithm === 'ga' ? gaConfig : algorithm === 'sa' ? saConfig : bbConfig
+  const defaults = algorithm === 'ga' ? GA_DEFAULTS : algorithm === 'sa' ? SA_DEFAULTS : BB_DEFAULTS
+  const presets = algorithm === 'ga' ? GA_PRESETS : algorithm === 'sa' ? SA_PRESETS : BB_PRESETS
 
-  function updateKey(key: string, value: number | string | null) {
+  function updateKey(key: string, value: number | string | boolean | null) {
     if (algorithm === 'ga') onGaChange({ ...gaConfig, [key]: value } as GAConfig)
-    else onSaChange({ ...saConfig, [key]: value } as SAConfig)
+    else if (algorithm === 'sa') onSaChange({ ...saConfig, [key]: value } as SAConfig)
+    else onBbChange({ ...bbConfig, [key]: value } as BBConfig)
   }
 
   return (
@@ -133,14 +148,22 @@ export function HyperparamPanel({ algorithm, gaConfig, saConfig, onGaChange, onS
         {Object.entries(presets).map(([name, values]) => (
           <button
             key={name}
-            onClick={() => algorithm === 'ga' ? onGaChange(values as GAConfig) : onSaChange(values as SAConfig)}
+            onClick={() => {
+              if (algorithm === 'ga') onGaChange(values as GAConfig)
+              else if (algorithm === 'sa') onSaChange(values as SAConfig)
+              else onBbChange(values as BBConfig)
+            }}
             className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
           >
             {name}
           </button>
         ))}
         <button
-          onClick={() => algorithm === 'ga' ? onGaChange(GA_DEFAULTS) : onSaChange(SA_DEFAULTS)}
+          onClick={() => {
+            if (algorithm === 'ga') onGaChange(GA_DEFAULTS)
+            else if (algorithm === 'sa') onSaChange(SA_DEFAULTS)
+            else onBbChange(BB_DEFAULTS)
+          }}
           className="px-2 py-0.5 rounded text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
         >
           Reset
