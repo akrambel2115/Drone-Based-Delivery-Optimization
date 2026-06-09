@@ -6,8 +6,8 @@ import { useRunsStore } from '../../store/runs'
 import type { Algorithm } from './AlgoPicker'
 import { AlgoPicker } from './AlgoPicker'
 import { DatasetPicker } from './DatasetPicker'
-import { GA_DEFAULTS, HyperparamPanel, SA_DEFAULTS } from './HyperparamPanel'
-import type { GAConfig, SAConfig } from './HyperparamPanel'
+import { GA_DEFAULTS, HyperparamPanel, SA_DEFAULTS, BB_DEFAULTS } from './HyperparamPanel'
+import type { GAConfig, SAConfig, BBConfig } from './HyperparamPanel'
 import { LaunchButton } from './LaunchButton'
 
 interface Props {
@@ -20,8 +20,9 @@ export function RunConfigurator({ onRunStarted }: Props) {
   const [algorithm, setAlgorithm] = useState<Algorithm>('sa')
   const [gaConfig, setGaConfig] = useState<GAConfig>(GA_DEFAULTS)
   const [saConfig, setSaConfig] = useState<SAConfig>(SA_DEFAULTS)
+  const [bbConfig, setBbConfig] = useState<BBConfig>(BB_DEFAULTS)
   const [launching, setLaunching] = useState(false)
-  const lastRunConfig = useRef<{ algorithm: Algorithm; gaConfig: GAConfig; saConfig: SAConfig } | null>(null)
+  const lastRunConfig = useRef<{ algorithm: Algorithm; gaConfig: GAConfig; saConfig: SAConfig; bbConfig: BBConfig } | null>(null)
 
   // Load instances once
   useEffect(() => {
@@ -35,11 +36,12 @@ export function RunConfigurator({ onRunStarted }: Props) {
     const handler = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT') return
       if (e.key === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey && lastRunConfig.current) {
-        const { algorithm: algo, gaConfig: ga, saConfig: sa } = lastRunConfig.current
+        const { algorithm: algo, gaConfig: ga, saConfig: sa, bbConfig: bb } = lastRunConfig.current
         setAlgorithm(algo)
         setGaConfig(ga)
         setSaConfig(sa)
-        handleLaunch(algo, ga, sa)
+        setBbConfig(bb)
+        handleLaunch(algo, ga, sa, bb)
       }
     }
     window.addEventListener('keydown', handler)
@@ -53,18 +55,19 @@ export function RunConfigurator({ onRunStarted }: Props) {
 
   const totalEstimate = algorithm === 'ga'
     ? gaConfig.generations
-    : Math.ceil(saConfig.max_iterations / 50)
+    : algorithm === 'sa' ? Math.ceil(saConfig.max_iterations / 50) : 100 // Arbitrary for BB
 
   async function handleLaunch(
     algo = algorithm,
     ga = gaConfig,
     sa = saConfig,
+    bb = bbConfig,
   ) {
     if (!selectedInstance || launching || isRunning) return
     setLaunching(true)
-    lastRunConfig.current = { algorithm: algo, gaConfig: ga, saConfig: sa }
+    lastRunConfig.current = { algorithm: algo, gaConfig: ga, saConfig: sa, bbConfig: bb }
     try {
-      const config = algo === 'ga' ? ga : sa
+      const config = algo === 'ga' ? ga : algo === 'sa' ? sa : bb
       const { run_id } = await api.runs.create({
         instance: selectedInstance,
         algorithm: algo,
@@ -98,8 +101,10 @@ export function RunConfigurator({ onRunStarted }: Props) {
         algorithm={algorithm}
         gaConfig={gaConfig}
         saConfig={saConfig}
+        bbConfig={bbConfig}
         onGaChange={setGaConfig}
         onSaChange={setSaConfig}
+        onBbChange={setBbConfig}
       />
 
       <div className="border-t border-slate-700" />
@@ -107,8 +112,8 @@ export function RunConfigurator({ onRunStarted }: Props) {
       <LaunchButton
         running={isRunning}
         disabled={!selectedInstance || launching}
-        progress={liveProgress.events.filter((e) => e.type === 'progress').length * (algorithm === 'ga' ? 1 : 50)}
-        totalEstimate={algorithm === 'ga' ? gaConfig.generations : saConfig.max_iterations}
+        progress={liveProgress.events.filter((e) => e.type === 'progress').length * (algorithm === 'ga' ? 1 : algorithm === 'sa' ? 50 : 1)}
+        totalEstimate={algorithm === 'ga' ? gaConfig.generations : algorithm === 'sa' ? saConfig.max_iterations : liveProgress.events.filter((e) => e.type === 'progress').length + 10}
         bestEnergy={liveProgress.latestEnergy}
         sparkline={sparkline}
         onLaunch={() => handleLaunch()}

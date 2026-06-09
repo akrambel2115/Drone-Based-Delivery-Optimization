@@ -1,6 +1,6 @@
 import { Tooltip } from '../shared/Tooltip'
 
-export type Algorithm = 'ga' | 'sa'
+export type Algorithm = 'ga' | 'sa' | 'bb'
 
 interface Props {
   value: Algorithm
@@ -10,6 +10,7 @@ interface Props {
 const ALGO_INFO: Record<Algorithm, string> = {
   ga: 'Genetic Algorithm — population-based search using crossover, mutation, and Prins optimal split decoding.',
   sa: 'Simulated Annealing — local search with Metropolis acceptance for escaping local optima.',
+  bb: 'Branch and Bound — Exact method using Two-Commodity Network Flow LP relaxation.',
 }
 
 export function AlgoPicker({ value, onChange }: Props) {
@@ -17,7 +18,7 @@ export function AlgoPicker({ value, onChange }: Props) {
     <div className="space-y-2">
       <label className="label">Algorithm</label>
       <div className="flex gap-1 bg-slate-900 border border-slate-700 rounded-lg p-1">
-        {(['ga', 'sa'] as Algorithm[]).map((algo) => (
+        {(['ga', 'sa', 'bb'] as Algorithm[]).map((algo) => (
           <button
             key={algo}
             onClick={() => onChange(algo)}

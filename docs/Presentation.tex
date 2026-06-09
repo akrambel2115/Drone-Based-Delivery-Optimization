@@ -1,0 +1,235 @@
+\documentclass[11pt,aspectratio=169]{beamer}
+
+% ======================== Theme & Colors ========================
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{} % Remove navigation symbols
+
+% ======================== Packages ========================
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+% ======================== Title Information ========================
+\title[Drone Delivery Optimization]{Drone-Based Delivery Optimization Problem}
+\subtitle{Mathematical Modeling, Complexity, and Algorithmic Solutions}
+\author[Group Project]{University Group Project}
+\date{\today}
+
+\begin{document}
+
+% ----------------------------------------------------------------
+% 1. Title Slide
+% ----------------------------------------------------------------
+\begin{frame}
+    \titlepage
+\end{frame}
+
+% ----------------------------------------------------------------
+% 2. Introduction & Problem Context
+% ----------------------------------------------------------------
+\begin{frame}{Introduction \& Problem Context}
+    \textbf{Objective:} Route a homogeneous fleet of drones to deliver payloads from a central depot to distributed customers.
+    
+    \vspace{0.5cm}
+    \textbf{Physical \& Operational Constraints:}
+    \begin{itemize}
+        \item \textbf{3D Environment:} Navigation occurs in a three-dimensional airspace.
+        \item \textbf{No-Fly Zones (NFZs):} Drones must avoid restricted static obstacles.
+        \item \textbf{Capacity Limits:} Strict bounds on \textbf{payload} weight and \textbf{battery} energy.
+        \item \textbf{Anisotropic Energy Profile:} Energy consumption rates vary significantly between horizontal flight and vertical ascent/descent.
+    \end{itemize}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 3. Preprocessing: 3D Data Generation
+% ----------------------------------------------------------------
+\begin{frame}{Preprocessing: 3D Data Generation}
+    \textbf{How the Data was Generated:}
+    \vspace{0.2cm}
+    \begin{itemize}
+        \item \textbf{Grid Construction:} A simulated three-dimensional airspace grid where customers are distributed at varying altitudes.
+        \item \textbf{No-Fly Zones (NFZs):} Modeled as 3D bounding boxes restricting flight paths (e.g., restricted airspace, tall buildings).
+        \item \textbf{Drone Specifications:} Configured with maximum payload capacities and anisotropic battery depletion rates.
+        \item \textbf{Export:} The entire environment (depot, customers, demands, drones, and NFZs) is exported as reproducible JSON benchmark instances.
+    \end{itemize}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 4. Preprocessing: Graph Abstraction
+% ----------------------------------------------------------------
+\begin{frame}{Preprocessing: Graph Abstraction}
+    \textbf{Challenge:} Embedding full 3D obstacle avoidance within routing formulations is computationally intractable.
+    
+    \vspace{0.3cm}
+    \textbf{Solution: A* Pathfinding Abstraction}
+    \begin{itemize}
+        \item We invoke an \textbf{A* search algorithm} over the discretized 3D airspace.
+        \item Computes the minimum-energy feasible trajectory between every pair of locations $(i, j)$ avoiding NFZs.
+        \item Yields an energy matrix $E_{ij}$ representing the exact flight cost.
+    \end{itemize}
+    
+    \vspace{0.3cm}
+    \textbf{Result:} The physical problem reduces to routing on a complete directed graph $G = (V, A)$ where arcs $A$ are weighted by minimum energy $E_{ij}$.
+\end{frame}
+
+% ----------------------------------------------------------------
+% 5. Formulation 1: Vehicle-Indexed MILP
+% ----------------------------------------------------------------
+\begin{frame}{Formulation 1: Vehicle-Indexed MILP}
+    \textbf{Approach:} Classical Capacitated Vehicle Routing Problem with Energy Constraints.
+    
+    \begin{itemize}
+        \item \textbf{Variables:} $x_{ijk} \in \{0, 1\}$ tracks if drone $k$ traverses arc $(i,j)$.
+        \item \textbf{Miller-Tucker-Zemlin (MTZ) Constraints:}
+        \begin{equation*}
+            u_{ik} + d_j \le u_{jk} + M(1 - x_{ijk})
+        \end{equation*}
+        Simultaneously tracks cumulative delivered payload ($u_{ik}$) and eliminates disconnected subtours via strictly increasing sequences.
+        \vspace{0.3cm}
+        \item \textbf{Major Drawback - Vehicle Symmetry:} 
+        Because the fleet is homogeneous, any permutation of drone indices yields the exact same objective value, causing severe branch-and-bound tree explosion.
+    \end{itemize}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 6. Formulation 2: Two-Commodity Network Flow
+% ----------------------------------------------------------------
+\begin{frame}{Formulation 2: Two-Commodity Network Flow}
+    \textbf{Approach:} A \emph{vehicle-agnostic} perspective tracking two continuous "fluids".
+    
+    \begin{itemize}
+        \item \textbf{Variables:} $x_{ij} \in \{0, 1\}$ (drone-independent assignment).
+        \item \textbf{Commodity 1 ($F_{ij}$):} Payload flow. Balance constraint:
+        \begin{equation*}
+            \sum_{i} F_{ij} - \sum_{i} F_{ji} = d_j, \quad \forall\, j \in C
+        \end{equation*}
+        \item \textbf{Commodity 2 ($Q_{ij}$):} Energy flow. Accumulates energy cost $E_{ij}$ at each node to enforce battery capacities ($Q_{ij} \le B_{\max}$).
+    \end{itemize}
+
+    \vspace{0.1cm}
+    \textbf{Key Strengths:} Eliminates drone-index symmetry completely and provides a much \textbf{tighter LP Relaxation} for exact solvers compared to MTZ.
+\end{frame}
+
+% ----------------------------------------------------------------
+% 7. Computational Complexity
+% ----------------------------------------------------------------
+\begin{frame}{Computational Complexity}
+    \textbf{Theorem:} The Drone-Based Delivery Optimization Problem is strongly NP-Hard.
+    
+    \vspace{0.5cm}
+    \textbf{Proof Outline (By Restriction):}
+    \begin{itemize}
+        \item Consider a specialized instance of our problem where:
+        \begin{enumerate}
+            \item All $Z$-coordinates (altitudes) are identically 0.
+            \item The set of No-Fly Zones is empty.
+            \item The drone battery capacity is set to infinity ($B_{\max} \to \infty$).
+        \end{enumerate}
+        \item The anisotropic energy model reduces to isotropic 2D Euclidean distance.
+        \item The problem identically reduces to the classical \textbf{Capacitated Vehicle Routing Problem (CVRP)}, which is proven to be strongly NP-Hard.
+    \end{itemize}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 8. Exact Method: Branch and Bound (Overview)
+% ----------------------------------------------------------------
+\begin{frame}{Exact Method: Branch and Bound (1/2)}
+    To mathematically prove optimal routes, we implemented a custom exact solver based on the Two-Commodity Network Flow formulation.
+    
+    \vspace{0.3cm}
+    \textbf{Algorithm Mechanics:}
+    \begin{itemize}
+        \item \textbf{Initialization:} Uses a greedy \emph{Nearest Neighbor} heuristic to warm-start the search and establish a strong initial \textbf{Upper Bound (UB)}.
+        \item \textbf{Search Strategy:} Depth-First Search (DFS) over the binary assignment variables $x_{ij}$.
+        \item \textbf{Bounding Oracle:} At every node in the search tree, we solve the \textbf{Linear Programming (LP) Relaxation} (relaxing $x_{ij} \in [0, 1]$) using the PuLP library to compute a strong \textbf{Lower Bound (LB)}.
+    \end{itemize}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 9. Exact Method: Branch and Bound (Pruning)
+% ----------------------------------------------------------------
+\begin{frame}{Exact Method: Branch and Bound (2/2)}
+    \textbf{Branching Strategy:}
+    \begin{itemize}
+        \item We select the \textbf{"Most Fractional Variable"} (the fractional $x_{ij}$ closest to 0.5) to split the tree into two child nodes: $x_{ij} = 0$ (forbidden) and $x_{ij} = 1$ (mandated).
+    \end{itemize}
+
+    \vspace{0.3cm}
+    \textbf{Pruning Rules:}
+    \begin{enumerate}
+        \item \textbf{Infeasibility:} The LP relaxation has no valid solution under current forced arcs.
+        \item \textbf{Bound Pruning:} $LB \ge UB$. The current branch cannot possibly yield an integer solution better than the incumbent.
+        \item \textbf{Integrality Fathoming:} The LP relaxation naturally yields a pure integer solution ($x_{ij} \in \{0, 1\}$). We update the UB and prune the branch.
+    \end{enumerate}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 10. Metaheuristics (SA & GA)
+% ----------------------------------------------------------------
+\begin{frame}{Metaheuristics: SA \& GA}
+    Because B\&B scales exponentially, we developed robust metaheuristics to find high-quality Upper Bounds rapidly for larger instances.
+    
+    \vspace{0.3cm}
+    \begin{itemize}
+        \item \textbf{Simulated Annealing (SA):}
+        \begin{itemize}
+            \item Uses intra-route and inter-route neighborhood operators (Swap, Insert, Reverse).
+            \item Employs a temperature cooling schedule to probabilistically accept worse solutions, escaping local minima.
+        \end{itemize}
+        \vspace{0.2cm}
+        \item \textbf{Genetic Algorithm (GA):}
+        \begin{itemize}
+            \item Maintains a population of solutions.
+            \item \textbf{Crossover:} Uses Order Crossover (OX) to preserve feasible customer sequencing traits from parent routes.
+            \item \textbf{Mutation:} Randomly injects diversity to explore the broader search space.
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 11. Web Platform & Implementation
+% ----------------------------------------------------------------
+\begin{frame}{Web Platform \& Implementation}
+    \textbf{Full-Stack Integration:} Moving beyond theory to practical engineering.
+    
+    \begin{columns}
+        \begin{column}{0.55\textwidth}
+            \begin{itemize}
+                \item \textbf{Architecture:} Python FastAPI backend interacting with a React/Vite frontend.
+                \item \textbf{3D Visualization Plane:} A central interactive 3D viewport rendering drone flight paths, NFZs, and customer nodes in real-time.
+                \item \textbf{Run Configurator UI:} A left-panel interface to select JSON instances, choose algorithms (BB, GA, SA), and dynamically tune hyperparameters (e.g., SA cooling rate, GA population).
+                \item \textbf{Live Streaming:} Uses Server-Sent Events (SSE) to chart energy vs. iterations live during execution.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.45\textwidth}
+            % \note{Insert a screenshot of the Web UI Cockpit here, specifically showing the central 3D plane and left configuration panel.}
+            \begin{center}
+                \includegraphics[width=\textwidth]{"website picture.png"}
+            \end{center}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 12. Conclusion
+% ----------------------------------------------------------------
+\begin{frame}{Conclusion}
+    \textbf{Summary of Achievements:}
+    \vspace{0.3cm}
+    \begin{itemize}
+        \item \textbf{Physical to Mathematical:} Successfully abstracted a complex 3D aerodynamic environment with NFZs into a clean graph-theoretic model using A*.
+        \item \textbf{Rigorous Modeling:} Formulated the problem using two MILP approaches and proved its NP-Hard complexity.
+        \item \textbf{Algorithmic Suite:} Developed an exact LP-based B\&B solver alongside highly optimized SA and GA metaheuristics.
+        \item \textbf{Software Engineering:} Packaged the computational engines into a fully integrated, interactive web-based solver platform.
+    \end{itemize}
+    
+    \vspace{0.5cm}
+    \begin{center}
+        \textbf{Thank You! Questions?}
+    \end{center}
+\end{frame}
+
+\end{document}
+    

@@ -23,6 +23,7 @@ from typing import Any, Callable
 
 from metaheuristics.algorithms.genetic_algorithm import GAConfig, GeneticAlgorithm
 from metaheuristics.algorithms.simulated_annealing import SAConfig, SimulatedAnnealing
+from metaheuristics.algorithms.branch_and_bound import BBConfig, BranchAndBound
 from metaheuristics.core.evaluator import evaluate_solution, total_energy
 from metaheuristics.core.instance import ProblemInstance
 from metaheuristics.core.repair import repair_solution
@@ -312,9 +313,12 @@ def _run_solver(job: RunJob) -> None:
         if job.algorithm == "sa":
             sa_cfg = SAConfig(**{k: v for k, v in job.config.items() if k in SAConfig.__dataclass_fields__})
             result = _StreamingSA(sa_cfg).solve_streaming(instance, callback)
-        else:
+        elif job.algorithm == "ga":
             ga_cfg = GAConfig(**{k: v for k, v in job.config.items() if k in GAConfig.__dataclass_fields__})
             result = _StreamingGA(ga_cfg).solve_streaming(instance, callback)
+        else:
+            bb_cfg = BBConfig(**{k: v for k, v in job.config.items() if k in BBConfig.__dataclass_fields__})
+            result = BranchAndBound(bb_cfg).solve_streaming(instance, callback)
 
         payload = solve_result_to_json(result)
 

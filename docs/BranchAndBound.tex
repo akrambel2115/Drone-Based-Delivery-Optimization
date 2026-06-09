@@ -1,0 +1,110 @@
+\documentclass[11pt,a4paper]{article}
+
+% ======================== Packages ========================
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% ======================== Title ========================
+\title{\textbf{Exact Method Implementation}\\[0.3em]
+\large Branch and Bound Algorithm for Drone-Based Delivery}
+\author{University Group Project}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+% ================================================================
+% SECTION 1: INTRODUCTION
+% ================================================================
+\section{Introduction}
+
+To establish an exact baseline and mathematically prove the optimality of routing solutions, we have implemented a custom \textbf{Branch and Bound (B\&B)} algorithm. Given the symmetric issues identified in the vehicle-indexed formulation (Formulation 1), our exact method relies entirely on the vehicle-agnostic \textbf{Two-Commodity Network Flow formulation} (Formulation 2). 
+
+The algorithm explores a binary search tree over the arc assignment variables $x_{ij}$, using a Linear Programming (LP) relaxation at each node to compute strong lower bounds. This document details the mathematical and algorithmic mechanisms of the implementation.
+
+% ================================================================
+% SECTION 2: THE LP RELAXATION ORACLE
+% ================================================================
+\section{The LP Relaxation Oracle}
+
+At each node of the Branch and Bound search tree, we require a fast and tight lower bound on the optimal solution subject to the branching decisions made thus far. We obtain this bound by solving the LP relaxation of Formulation 2.
+
+\subsection{Variable Relaxation}
+The core mechanism of the LP Oracle is the relaxation of the integrality constraint on the flow assignment variables. The original binary constraint:
+\[
+  x_{ij} \in \{0, 1\}, \quad \forall\, (i,j) \in A
+\]
+is relaxed to a continuous domain:
+\[
+  0 \le x_{ij} \le 1, \quad \forall\, (i,j) \in A
+\]
+The commodity flow variables (payload flow $F_{ij}$ and energy flow $Q_{ij}$) remain continuous and bounded by $F_{ij} \ge 0$ and $Q_{ij} \ge 0$.
+
+\subsection{Node Subproblem Formulation}
+Let $S_0$ be the set of arcs fixed to $0$ (forbidden arcs) and $S_1$ be the set of arcs fixed to $1$ (mandated arcs) at the current node in the search tree. The LP Oracle solves the following continuous subproblem:
+
+\begin{align}
+  \text{LB} = \min \quad & \sum_{(i,j) \in A} E_{ij} \, x_{ij} \\[6pt]
+  \text{s.t.} \quad 
+  & \sum_{i \in V \setminus \{j\}} x_{ij} = 1, && \forall\, j \in C \\
+  & \sum_{j \in V \setminus \{i\}} x_{ij} = 1, && \forall\, i \in C \\
+  & \sum_{i \in V \setminus \{j\}} F_{ij} - \sum_{i \in V \setminus \{j\}} F_{ji} = d_j, && \forall\, j \in C \\
+  & F_{ij} \le Q_{\max} \cdot x_{ij}, && \forall\, (i,j) \in A \\
+  & \sum_{i \in V \setminus \{j\}} Q_{ji} - \sum_{i \in V \setminus \{j\}} Q_{ij} = \sum_{i \in V \setminus \{j\}} E_{ji} \, x_{ji}, && \forall\, j \in C \\
+  & Q_{ij} \le B_{\max} \cdot x_{ij}, && \forall\, (i,j) \in A \\
+  & Q_{ij} \ge E_{ij} \cdot x_{ij}, && \forall\, (i,j) \in A \\
+  & x_{ij} = 0, && \forall\, (i,j) \in S_0 \\
+  & x_{ij} = 1, && \forall\, (i,j) \in S_1 \\
+  & 0 \le x_{ij} \le 1, && \forall\, (i,j) \in A \\
+  & F_{ij} \ge 0,\; Q_{ij} \ge 0, && \forall\, (i,j) \in A
+\end{align}
+
+Note the addition of the explicit flow lower bound $Q_{ij} \ge E_{ij} x_{ij}$, which tightens the relaxation by ensuring that any fractional assignment of flow must carry at least the energy required to traverse the arc.
+
+% ================================================================
+% SECTION 3: THE BRANCH AND BOUND TREE SEARCH
+% ================================================================
+\section{The Branch and Bound Tree Search}
+
+The LP Oracle provides the bounding mechanism within a Depth-First Search (DFS) Branch and Bound tree.
+
+\subsection{Initialization and Warm Start}
+To aggressively prune the search tree early in the execution, the algorithm initializes with a heuristic \textbf{Upper Bound (UB)}. A greedy \emph{Nearest Neighbor} construction heuristic is executed prior to the root node evaluation. 
+If the heuristic identifies a feasible solution, its total energy cost becomes the initial UB. Otherwise, the UB is initialized to infinity ($\infty$).
+
+\subsection{Node Evaluation and Pruning Rules}
+At any node in the search tree defined by $(S_0, S_1)$, the LP Oracle is invoked. The resulting status dictates the pruning logic:
+
+\begin{enumerate}
+    \item \textbf{Infeasibility Pruning:} If the LP Oracle returns an \emph{infeasible} status (due to conflicting forced arcs or insufficient capacity), the node is pruned, and the search backtracks.
+    \item \textbf{Bound Pruning:} If the LP Oracle returns an optimal objective value $\text{LB}$, we compare it to the incumbent upper bound. If $\text{LB} \ge \text{UB}$, the current branch cannot yield a strictly better integer solution, and the node is pruned.
+    \item \textbf{Integrality Pruning (Fathoming):} If the LP Oracle returns a solution where all $x_{ij}$ variables naturally assume integer values ($x_{ij} \in \{0, 1\}$ within a tight tolerance $\epsilon = 10^{-5}$), we have found a valid, feasible routing configuration. We reconstruct the individual routes, evaluate the solution to confirm exact capacity limits, update the incumbent $\text{UB} = \text{LB}$, save the new best solution, and prune the node.
+\end{enumerate}
+
+\subsection{Branching Strategy}
+If a node is evaluated, yields $\text{LB} < \text{UB}$, and contains fractional assignments (i.e., it is not pruned), the algorithm must branch. We employ a \textbf{Most Fractional Variable} branching strategy. 
+
+Let $x_{ij}^*$ be the optimal fractional value returned by the LP Oracle. We compute the distance to $0.5$ for all fractional variables:
+\[
+  \delta_{ij} = | x_{ij}^* - 0.5 |
+\]
+The algorithm selects the variable with the minimum $\delta_{ij}$ (the one closest to $0.5$). Let this branching variable be $x_{uv}$. 
+
+Two child nodes are generated and pushed onto the DFS stack:
+\begin{itemize}
+    \item \textbf{Left Child:} The arc is explicitly forbidden. $S_0 \leftarrow S_0 \cup \{(u, v)\}$.
+    \item \textbf{Right Child:} The arc is mandated. $S_1 \leftarrow S_1 \cup \{(u, v)\}$.
+\end{itemize}
+
+To optimize the search trajectory, the DFS stack order is dynamically adjusted based on the fractional value $x_{uv}^*$. If $x_{uv}^* > 0.5$, the algorithm explores the Right Child ($x_{uv}=1$) first, assuming the LP is indicating a strong preference for including the arc. Otherwise, the Left Child is explored first.
+
+\section{Summary}
+By combining the tighter formulation of the Two-Commodity Network Flow model with an explicit Most Fractional Variable branching strategy, this Branch and Bound implementation correctly establishes a mathematically rigorous baseline for evaluating the performance and optimality gaps of the metaheuristic approaches.
+
+\end{document}

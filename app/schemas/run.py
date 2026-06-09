@@ -37,10 +37,15 @@ class SAConfigIn(BaseModel):
     record_history: bool = True
 
 
+class BBConfigIn(BaseModel):
+    greedy_initialization: bool = True
+    record_history: bool = True
+
+
 class RunRequest(BaseModel):
     instance: str
-    algorithm: Literal["ga", "sa"]
-    config: GAConfigIn | SAConfigIn
+    algorithm: Literal["ga", "sa", "bb"]
+    config: GAConfigIn | SAConfigIn | BBConfigIn
 
 
 # ---------------------------------------------------------------------------
