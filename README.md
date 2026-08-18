@@ -1,168 +1,206 @@
-# Drone-Based Delivery Optimisation
+# Drone-Based Delivery Optimization
 
-End-to-end toolkit for the drone-based last-mile delivery routing problem:
-a configurable 3D dataset generator, two metaheuristic solvers (Genetic
-Algorithm and Simulated Annealing), a command-line interface, a benchmark
-runner, and an interactive web cockpit for live exploration.
+An end-to-end research toolkit for energy-aware, last-mile drone routing in
+three-dimensional environments. The project generates reproducible benchmark
+instances with terrain and no-fly zones, solves them with exact and
+metaheuristic algorithms, and provides a web cockpit for configuring runs and
+inspecting routes.
 
-## What's in the box
+![Drone Cockpit showing a solved routing instance](docs/figures/web.png)
 
-| Module | Purpose |
-|---|---|
-| [data_generator/](data_generator/) | Generates 3D benchmark instances with terrain, no-fly zones, customers and a precomputed asymmetric obstacle-aware travel-cost matrix. |
-| [metaheuristics/](metaheuristics/) | Self-contained solver library: domain model, evaluator, repair pipeline, problem-specific operators, GA, SA, and a typed result schema. |
-| [scripts/](scripts/) | Command-line utilities — instance generation, dataset visualisation, single-run solver, multi-instance benchmark sweep. |
-| [app/](app/) | FastAPI backend that wraps the solver library, streams convergence updates and persists run results. |
-| [web/](web/) | Vite + React + TypeScript + Tailwind frontend — the "Cockpit" UI for picking a dataset, launching a solver and inspecting the routes in 3D. |
-| [docs/](docs/) | Design documents — data generation, metaheuristic solvers, source assignment, benchmark guidance. |
-| [data/instances/](data/instances/) | Ten pre-generated benchmark instances (small / medium / large). |
-| [tests/](tests/) | Pytest suite covering the data generator and the solver library. |
+## Features
 
-## Quick start — command-line
+- Configuration-driven generation of 3D benchmark instances.
+- Obstacle-aware, asymmetric travel costs computed from terrain, altitude, and
+  no-fly zones.
+- Branch and Bound exact solver with a linear-programming relaxation.
+- Genetic Algorithm and Simulated Annealing solvers with problem-specific
+  construction, crossover, mutation, neighborhood, and repair operators.
+- Command-line tools for generation, solving, benchmarking, and visualization.
+- FastAPI backend with server-sent progress events.
+- React and TypeScript cockpit with route visualization, run comparison, and
+  run history.
+- Automated tests for the generator, solvers, and API.
 
-Install the solver dependencies:
+## Problem model
 
-```
-py -3.13 -m pip install -r requirements.txt
-```
+Each instance contains a central depot, customers with payload demand, a drone
+profile, terrain, optional no-fly zones, and a precomputed travel-cost matrix.
+Every customer must be served exactly once. Each route starts and ends at the
+depot and must respect payload, battery, and optional fleet-size limits. The
+objective is to minimize total energy consumption.
 
-Run Simulated Annealing on the smallest benchmark instance:
+The same obstacle-aware cost matrix is consumed by every solver, which keeps
+comparisons between the exact method, Genetic Algorithm, and Simulated
+Annealing consistent.
 
-```
-py -3.13 scripts/solve_metaheuristic.py sa data/instances/instance_01_basic_small.json
-```
+## Repository structure
 
-Run the Genetic Algorithm with a fixed seed and save the report:
-
-```
-py -3.13 scripts/solve_metaheuristic.py ga data/instances/instance_05_dense_medium.json --seed 42 --out data/solver_runs/ga_inst05.json
-```
-
-Sample output:
-
-```
-[simulated_annealing] instance_01_basic_small: energy=260.85  routes=2  feasible=True  iterations=29800  runtime=1.03s
-  routes:
-    drone 1: stops=7   load=20/25  energy=175.22/500.0
-      path: depot -> 11 -> 6 -> 10 -> 8 -> 12 -> 1 -> 4 -> depot
-    drone 2: stops=5   load=17/25  energy=85.64/500.0
-      path: depot -> 9 -> 5 -> 2 -> 3 -> 7 -> depot
-```
-
-Pass `--quiet-routes` to suppress the per-drone breakdown. See
-`scripts/solve_metaheuristic.py --help` for every available knob
-(temperature, cooling rate, population size, etc.).
-
-Run the bulk benchmark sweep across all 10 instances (used for the
-comparative study):
-
-```
-py -3.13 scripts/benchmark_metaheuristics.py
+```text
+app/                    FastAPI application, schemas, services, and API tests
+configs/                Generator configuration for the benchmark scenarios
+data/instances/         Ten reproducible benchmark instances
+data_generator/         Terrain, placement, pathfinding, and validation code
+docs/                   Mathematical, algorithm, and presentation sources
+metaheuristics/         Exact and metaheuristic solver implementations
+scripts/                Generation, solving, benchmarking, and visualization CLIs
+tests/                  Generator and solver test suite
+web/                    React, TypeScript, Tailwind, and Vite frontend
 ```
 
-Outputs land under `data/solver_runs/` — one JSON report per `(instance,
-algorithm)` pair plus a `summary.csv` for downstream plotting.
+Generated solver output is written to `data/solver_runs/` and is intentionally
+excluded from version control.
 
-## Quick start — web cockpit
+![Layered solver architecture](docs/figures/solver.png)
 
-The web UI provides an interactive way to pick an instance, tune
-hyperparameters, watch the convergence chart update live and inspect the
-resulting routes on a 3D terrain map. It is a thin client on top of the
-same solver library.
+## Requirements
 
-### 1. Start the API
+- Python 3.10 or newer
+- Node.js 20.19 or newer and npm, for the web interface
+- A C compiler is not required for the standard installation
 
+## Installation
+
+Clone the repository and create an isolated Python environment:
+
+```bash
+git clone https://github.com/akrambel2115/Drone-Based-Delivery-Optimization.git
+cd Drone-Based-Delivery-Optimization
+python -m venv .venv
 ```
-py -3.13 -m pip install -r requirements-app.txt
-py -3.13 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+Activate the environment on Linux or macOS:
+
+```bash
+source .venv/bin/activate
 ```
 
-Swagger docs at <http://localhost:8000/docs>.
+Activate it on Windows PowerShell:
 
-### 2. Start the frontend
-
+```powershell
+.venv\Scripts\Activate.ps1
 ```
+
+Install the core solver and test dependencies:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+The repository does not require credentials or environment variables for local
+use. If deployment-specific configuration is added later, keep real values in
+an untracked `.env` file and commit only a sanitized `.env.example`.
+
+## Command-line usage
+
+Generate all configured benchmark instances:
+
+```bash
+python scripts/generate_all.py
+```
+
+Solve the smallest instance with Simulated Annealing:
+
+```bash
+python scripts/solve_metaheuristic.py sa data/instances/instance_01_basic_small.json
+```
+
+Run the Genetic Algorithm with a fixed random seed and save the result:
+
+```bash
+python scripts/solve_metaheuristic.py ga data/instances/instance_05_dense_medium.json --seed 42 --out data/solver_runs/ga_instance_05.json
+```
+
+Run the complete benchmark sweep:
+
+```bash
+python scripts/benchmark_metaheuristics.py
+```
+
+Create an interactive visualization for an instance:
+
+```bash
+python scripts/visualize_instance.py data/instances/instance_04_dense_small.json
+```
+
+Use `--help` with any script to see its complete option reference.
+
+## Web application
+
+Install the API dependencies and start the backend from the repository root:
+
+```bash
+python -m pip install -r requirements-app.txt
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The OpenAPI interface is available at <http://127.0.0.1:8000/docs>.
+
+In a second terminal, install and start the frontend:
+
+```bash
 cd web
-npm install
+npm ci
 npm run dev
 ```
 
-Open <http://localhost:5173>. The Vite dev server proxies `/api` calls
-to FastAPI, so both processes must be running.
+Open <http://127.0.0.1:5173>. The Vite development server proxies API requests
+to the backend.
 
-### Cockpit features
+## Testing and validation
 
-| Feature | Details |
-|---|---|
-| Dataset picker | Choose one of the 10 benchmark instances |
-| Algorithm picker | Toggle between GA and SA, tweak hyperparameters with sliders |
-| Live convergence | Server-sent events stream the best-so-far energy and (for SA) the temperature |
-| 3D mission map | Terrain surface, no-fly zones as boxes, depot, customers, animated drone routes |
-| Per-drone stats | Payload gauge, battery gauge, ordered customer chips, click to isolate on the map |
-| Compare view | Side-by-side diff of any two saved runs |
-| Run history | Table of past runs, click to re-open |
+Run all Python tests from the repository root:
 
-Keyboard shortcuts: `1`–`9` quick-pick an instance, `/` focus the
-dataset dropdown, `R` re-run with the same config, `C` open the Compare
-view (when a result is loaded).
-
-## Repository layout
-
+```bash
+python -m pytest
 ```
-data_generator/                  # 3D dataset generation pipeline
-metaheuristics/                  # Solver library
-├── core/                          # ProblemInstance, Solution, Evaluator, Repair
-├── operators/                     # Problem-specific operators
-├── algorithms/                    # GA + SA behind a Strategy interface
-└── reporting/                     # SolveResult dataclass + JSON serialiser
-scripts/                         # CLIs: generate, visualize, solve, benchmark
-app/                             # FastAPI backend
-├── api/                           # Endpoint routers
-├── services/                      # Solver runner + instance cache
-├── schemas/                       # Pydantic request/response models
-└── tests/                         # API integration tests
-web/                             # React + TS + Tailwind frontend
-└── src/
-    ├── api/                       # Typed API client + SSE helper
-    ├── components/                # Run configurator, 3D map, stats panel
-    ├── pages/                     # Cockpit, Compare, History
-    └── store/                     # Zustand global state
-data/
-├── instances/                     # 10 benchmark JSON files
-└── solver_runs/                   # Saved solver outputs (gitignored)
-docs/                            # Design documents
-tests/                           # Pytest suite for solver + generator
+
+Build the frontend:
+
+```bash
+cd web
+npm ci
+npm run build
 ```
+
+The benchmark JSON files are generated deterministically from the configuration
+files. To validate reproducibility after changing generator code, regenerate the
+instances and inspect the resulting Git diff.
 
 ## Documentation
 
-- [docs/metaheuristics.md](docs/metaheuristics.md) — solver design, operator
-  catalogue, problem-specific operators, algorithm pseudocode and
-  configuration reference.
-- [docs/data_generation.md](docs/data_generation.md) — the 3D dataset
-  generation pipeline, the obstacle model and the cost matrix.
-- [docs/benchmarks.md](docs/benchmarks.md) — benchmark instance catalogue
-  and assumptions.
-- [docs/source_assignment.md](docs/source_assignment.md) — provenance and
-  authorship notes.
+- [Metaheuristic design](docs/metaheuristics.md) describes the domain model,
+  encodings, operators, algorithms, configuration, and test strategy.
+- [Mathematical formulation](docs/Formulation.tex) contains the optimization
+  models and constraints.
+- [Complexity proof](docs/Proof.tex) documents the computational-complexity
+  analysis.
+- [Branch and Bound](docs/BranchAndBound.tex) explains the exact solution
+  method.
+- [Presentation source](docs/Presentation.tex) provides the Beamer presentation
+  for the project.
 
-## Testing
+## Security and responsible use
 
-```
-pytest tests/        # solver library and data generator
-pytest app/tests/    # API integration tests
-cd web && npm test   # frontend store / util tests (if configured)
-```
+No credentials are required by the application. Do not commit API keys,
+passwords, private keys, personal datasets, or local environment files. The
+repository ignore rules cover common secret-bearing and machine-specific files,
+but they do not replace a secret scan before publishing or accepting changes.
 
-All 31 metaheuristic tests run in under one second alongside the
-data-generation suite.
+If a secret is committed, revoke or rotate it first, then remove it from the
+entire Git history before making the repository public. Deleting it only from
+the latest commit is not sufficient.
 
-## Data contract
+## Contributing
 
-Every solver in this repository — current metaheuristics and the planned
-exact method — consumes the same JSON `travel_cost_matrix` embedded in
-each instance file. The matrix is asymmetric (vertical climb costs more
-than descent) and obstacle-aware (a leg blocked by a no-fly zone is
-priced at the ascend-cruise-descend path that goes around it). Sharing
-the matrix verbatim is what makes the comparative study fair: every
-algorithm optimises against the identical cost model.
+Keep changes focused, add or update tests when behavior changes, and use
+conventional commit messages such as `feat:`, `fix:`, `docs:`, `test:`, and
+`chore:`. Before opening a pull request, run the Python test suite and frontend
+build.
+
+## License
+
+No open-source license has been selected. Add a license before publication if
+you want others to have explicit permission to use, modify, or redistribute the
+project.

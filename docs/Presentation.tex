@@ -14,7 +14,7 @@
 % ======================== Title Information ========================
 \title[Drone Delivery Optimization]{Drone-Based Delivery Optimization Problem}
 \subtitle{Mathematical Modeling, Complexity, and Algorithmic Solutions}
-\author[Group Project]{University Group Project}
+\author[NMO Project]{Numerical Methods and Optimization, ENSIA}
 \date{\today}
 
 \begin{document}
@@ -23,6 +23,10 @@
 % 1. Title Slide
 % ----------------------------------------------------------------
 \begin{frame}
+    \begin{center}
+        \vspace*{-0.5cm}
+        \includegraphics[height=1.5cm]{figures/logo.png}
+    \end{center}
     \titlepage
 \end{frame}
 
@@ -30,15 +34,37 @@
 % 2. Introduction & Problem Context
 % ----------------------------------------------------------------
 \begin{frame}{Introduction \& Problem Context}
-    \textbf{Objective:} Route a homogeneous fleet of drones to deliver payloads from a central depot to distributed customers.
+    \textbf{Problem Description:}
+    A logistics company operates a fleet of drones to deliver packages from a central depot to distributed customers.
     
-    \vspace{0.5cm}
-    \textbf{Physical \& Operational Constraints:}
+    \vspace{0.2cm}
+    \textbf{Objective:}
+    Design delivery routes for the drones such that all customers are served while \textbf{minimizing the total energy consumption}.
+
+    \vspace{0.2cm}
+    \textbf{Core Constraints:}
     \begin{itemize}
-        \item \textbf{3D Environment:} Navigation occurs in a three-dimensional airspace.
-        \item \textbf{No-Fly Zones (NFZs):} Drones must avoid restricted static obstacles.
-        \item \textbf{Capacity Limits:} Strict bounds on \textbf{payload} weight and \textbf{battery} energy.
-        \item \textbf{Anisotropic Energy Profile:} Energy consumption rates vary significantly between horizontal flight and vertical ascent/descent.
+        \item Each customer must be served \textbf{exactly once}.
+        \item Each drone must start and end its route at the central depot.
+        \item Strict limits on drone \textbf{battery capacity} (max energy) and \textbf{payload capacity} (max weight).
+        \item Routes must follow a continuous, feasible physical path.
+        \item Drones must strictly avoid forbidden No-Fly Zones.
+    \end{itemize}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 3. Modeling Assumptions
+% ----------------------------------------------------------------
+\begin{frame}{Modeling Assumptions}
+    Beyond the core project statement constraints, we established several critical assumptions to frame the mathematical model:
+
+    \vspace{0.3cm}
+    \begin{itemize}
+        \item \textbf{Offline \& Static Routing:} All customer locations and demands are known entirely in advance at $T=0$. No dynamic requests are handled mid-flight.
+        \item \textbf{Homogeneous Fleet:} All deployed drones possess identical battery and payload capacities.
+        \item \textbf{No Split Deliveries:} A customer's entire demand must be satisfied by a single drone visit.
+        \item \textbf{Infinite Depot Supply:} The central depot has unrestricted inventory; routing is the sole bottleneck.
+        \item \textbf{Anisotropic Flight Cost:} Vertical movement incurs an anisotropic energy penalty (ascending is strictly more expensive than descending).
     \end{itemize}
 \end{frame}
 
@@ -46,14 +72,57 @@
 % 3. Preprocessing: 3D Data Generation
 % ----------------------------------------------------------------
 \begin{frame}{Preprocessing: 3D Data Generation}
-    \textbf{How the Data was Generated:}
+    \begin{columns}[c]
+        \begin{column}{0.6\textwidth}
+            \textbf{How the Data was Generated:}
+            \vspace{0.2cm}
+            \begin{itemize}
+                \item \textbf{Grid Construction:} A simulated three-dimensional airspace grid where customers are distributed at varying altitudes.
+                \item \textbf{No-Fly Zones (NFZs):} Modeled as 3D bounding boxes restricting flight paths (e.g., restricted airspace, tall buildings).
+                \item \textbf{Dynamic Solvability:} Fleet capacities are auto-sized to guarantee mathematical feasibility:
+                \begin{itemize}
+                    \item $P_{\max} = \max(\text{Base}, \, \max_i(\text{Demand}_i), \, \text{TargetUtil})$
+                    \item $B_{\max} = \max(\text{Base}, \, \text{WorstRoundTrip} \times \text{Slack})$
+                \end{itemize}
+                \item \textbf{Export:} The entire environment is exported as reproducible JSON benchmark instances.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.4\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\linewidth,keepaspectratio]{figures/3d.png}
+                \caption{Generated 3D Environment with NFZs}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Procedural Terrain \& Noise Generation}
+
+\begin{columns}[c]
+
+\begin{column}{0.58\textwidth}
+    \textbf{Simulating Realistic Topography:}
     \vspace{0.2cm}
     \begin{itemize}
-        \item \textbf{Grid Construction:} A simulated three-dimensional airspace grid where customers are distributed at varying altitudes.
-        \item \textbf{No-Fly Zones (NFZs):} Modeled as 3D bounding boxes restricting flight paths (e.g., restricted airspace, tall buildings).
-        \item \textbf{Drone Specifications:} Configured with maximum payload capacities and anisotropic battery depletion rates.
-        \item \textbf{Export:} The entire environment (depot, customers, demands, drones, and NFZs) is exported as reproducible JSON benchmark instances.
+        \item \textbf{Noise Algorithms:} We utilized procedural sinusoidal noise generation (Fractional Brownian Motion) to mathematically generate realistic 3D elevation maps (Voxel Terrain).
+
+        \item \textbf{Altitude Demand:} Customers are placed directly onto this generated terrain surface. Consequently, delivering to a "mountain" inherently costs more energy than a "valley" due to the vertical climb penalty.
+
+        \item \textbf{Implicit Obstacles:} Any spatial coordinate beneath the noise surface threshold ($z < \text{NoiseHeight}(x,y)$) is automatically classified as solid ground, acting as a massive, implicit No-Fly Zone.
     \end{itemize}
+\end{column}
+
+\begin{column}{0.38\textwidth}
+    \begin{figure}
+        \centering
+        \includegraphics[width=\linewidth]{figures/3d.png}
+        \caption{Procedural Voxel Terrain Representation}
+    \end{figure}
+\end{column}
+
+\end{columns}
+
 \end{frame}
 
 % ----------------------------------------------------------------
@@ -65,7 +134,7 @@
     \vspace{0.3cm}
     \textbf{Solution: A* Pathfinding Abstraction}
     \begin{itemize}
-        \item We invoke an \textbf{A* search algorithm} over the discretized 3D airspace.
+        \item We invoke an \textbf{A* search algorithm} utilizing \textbf{26-way 3D connectivity} to compute smooth Euclidean flight paths.
         \item Computes the minimum-energy feasible trajectory between every pair of locations $(i, j)$ avoiding NFZs.
         \item Yields an energy matrix $E_{ij}$ representing the exact flight cost.
     \end{itemize}
@@ -136,56 +205,154 @@
 % 8. Exact Method: Branch and Bound (Overview)
 % ----------------------------------------------------------------
 \begin{frame}{Exact Method: Branch and Bound (1/2)}
-    To mathematically prove optimal routes, we implemented a custom exact solver based on the Two-Commodity Network Flow formulation.
-    
-    \vspace{0.3cm}
-    \textbf{Algorithm Mechanics:}
-    \begin{itemize}
-        \item \textbf{Initialization:} Uses a greedy \emph{Nearest Neighbor} heuristic to warm-start the search and establish a strong initial \textbf{Upper Bound (UB)}.
-        \item \textbf{Search Strategy:} Depth-First Search (DFS) over the binary assignment variables $x_{ij}$.
-        \item \textbf{Bounding Oracle:} At every node in the search tree, we solve the \textbf{Linear Programming (LP) Relaxation} (relaxing $x_{ij} \in [0, 1]$) using the PuLP library to compute a strong \textbf{Lower Bound (LB)}.
-    \end{itemize}
+
+To mathematically prove optimal routes, we implemented a custom exact solver based on the Two-Commodity Network Flow formulation.
+
+\vspace{0.4cm}
+
+\textbf{Algorithm Mechanics:}
+\begin{itemize}
+    \item \textbf{Initialization:} Uses a greedy \emph{Nearest Neighbor} heuristic to warm-start the search and establish a strong initial \textbf{Upper Bound (UB)}.
+
+    \item \textbf{Search Strategy:} Depth-First Search (DFS) over the binary assignment variables $x_{ij}$.
+
+    \item \textbf{Bounding Oracle:} At every node in the search tree, we solve the \textbf{Linear Programming (LP) Relaxation} using the PuLP library to compute a strong \textbf{Lower Bound (LB)}.
+\end{itemize}
+
 \end{frame}
+
 
 % ----------------------------------------------------------------
 % 9. Exact Method: Branch and Bound (Pruning)
 % ----------------------------------------------------------------
 \begin{frame}{Exact Method: Branch and Bound (2/2)}
-    \textbf{Branching Strategy:}
-    \begin{itemize}
-        \item We select the \textbf{"Most Fractional Variable"} (the fractional $x_{ij}$ closest to 0.5) to split the tree into two child nodes: $x_{ij} = 0$ (forbidden) and $x_{ij} = 1$ (mandated).
-    \end{itemize}
 
-    \vspace{0.3cm}
-    \textbf{Pruning Rules:}
-    \begin{enumerate}
-        \item \textbf{Infeasibility:} The LP relaxation has no valid solution under current forced arcs.
-        \item \textbf{Bound Pruning:} $LB \ge UB$. The current branch cannot possibly yield an integer solution better than the incumbent.
-        \item \textbf{Integrality Fathoming:} The LP relaxation naturally yields a pure integer solution ($x_{ij} \in \{0, 1\}$). We update the UB and prune the branch.
-    \end{enumerate}
+\begin{columns}[c]
+
+    %---------------- Left: Text ----------------%
+    \begin{column}{0.50\textwidth}
+
+        \textbf{Branching Strategy:}
+        \begin{itemize}
+            \item Select the \textbf{most fractional variable}
+            ($x_{ij}$ closest to 0.5).
+
+            \item Create two child nodes:
+            \[
+            x_{ij}=0
+            \qquad
+            x_{ij}=1
+            \]
+        \end{itemize}
+
+        \vspace{0.2cm}
+
+        \textbf{Pruning Rules:}
+        \begin{enumerate}
+            \item \textbf{Infeasibility}
+
+            \item \textbf{Bound Pruning}
+            \[
+            LB \ge UB
+            \]
+
+            \item \textbf{Integrality Fathoming}
+        \end{enumerate}
+
+    \end{column}
+
+    %---------------- Right: Image ----------------%
+    \begin{column}{0.50\textwidth}
+        \begin{figure}
+            \centering
+                \includegraphics[
+                width=\linewidth,
+                keepaspectratio
+                ]{figures/BB.png}
+            \caption{Branch and Bound Search Tree}
+        \end{figure}
+    \end{column}
+
+\end{columns}
+
 \end{frame}
 
 % ----------------------------------------------------------------
 % 10. Metaheuristics (SA & GA)
 % ----------------------------------------------------------------
-\begin{frame}{Metaheuristics: SA \& GA}
-    Because B\&B scales exponentially, we developed robust metaheuristics to find high-quality Upper Bounds rapidly for larger instances.
+\begin{frame}{Metaheuristic 1: Simulated Annealing (SA)}
+    Because B\&B scales exponentially, we developed robust metaheuristics to find high-quality solutions rapidly for larger instances.
     
     \vspace{0.3cm}
+    \textbf{Simulated Annealing Mechanics:}
     \begin{itemize}
-        \item \textbf{Simulated Annealing (SA):}
-        \begin{itemize}
-            \item Uses intra-route and inter-route neighborhood operators (Swap, Insert, Reverse).
-            \item Employs a temperature cooling schedule to probabilistically accept worse solutions, escaping local minima.
-        \end{itemize}
-        \vspace{0.2cm}
-        \item \textbf{Genetic Algorithm (GA):}
-        \begin{itemize}
-            \item Maintains a population of solutions.
-            \item \textbf{Crossover:} Uses Order Crossover (OX) to preserve feasible customer sequencing traits from parent routes.
-            \item \textbf{Mutation:} Randomly injects diversity to explore the broader search space.
-        \end{itemize}
+        \item \textbf{Neighborhood Operators:} Uses both intra-route and inter-route perturbations (Swap, Relocate, Inversion) to explore adjacent solutions.
+        \item \textbf{Cooling Schedule:} Employs a geometric temperature decay to probabilistically accept worse solutions early on, effectively escaping local minima.
+        \item \textbf{Exploitation:} As temperature drops, the algorithm converges into a strict hill-climbing descent.
     \end{itemize}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 11. Metaheuristic 2: Genetic Algorithm (GA)
+% ----------------------------------------------------------------
+\begin{frame}{Metaheuristic 2: Genetic Algorithm (GA)}
+    \textbf{Genetic Algorithm Mechanics:}
+    \begin{itemize}
+        \item \textbf{Strong Initialization:} We seed the initial population with high-quality constructive heuristics (\textbf{Clarke \& Wright Savings} and \textbf{Nearest Neighbour}), enabling extremely rapid convergence.
+        \item \textbf{Population Management:} Maintains a diverse pool of chromosomes representing "giant tours" (customer permutations).
+        \item \textbf{Crossover:} Uses Order Crossover (OX) to preserve optimal relative customer sequences from parent routes.
+        \item \textbf{Split Decoder:} Translates the sequence into optimal drone routes respecting payload and battery capacities.
+    \end{itemize}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 11b. Benchmark Instances
+% ----------------------------------------------------------------
+\begin{frame}{Benchmark Instances}
+    \textbf{Custom 3D Datasets Generated:}
+    \begin{table}
+        \centering
+        \footnotesize
+        \begin{tabular}{llrrc}
+            \toprule
+            \textbf{\#} & \textbf{Scenario} & \textbf{Cust.} & \textbf{Grid} & \textbf{Fleet Limit} \\
+            \midrule
+            01 & basic/small     &  12 & $50 \times 50$   & $\infty$ \\
+            02 & basic/medium    &  30 & $100 \times 100$ & $\infty$ \\
+            03 & basic/large     &  75 & $200 \times 200$ & $\infty$ \\
+            04 & dense/small     &  20 & $50 \times 50$   & 5 \\
+            05 & dense/medium    &  45 & $100 \times 100$ & 10 \\
+            06 & dense/large     & 100 & $200 \times 200$ & 22 \\
+            07 & dense/large$^*$ & 120 & $200 \times 200$ & 24 \\
+            08 & max/medium      &  60 & $100 \times 100$ & 12 \\
+            09 & max/large       & 125 & $200 \times 200$ & 25 \\
+            10 & max/extreme     & 150 & $200 \times 200$ & 30 \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+\end{frame}
+
+% ----------------------------------------------------------------
+% 12. Results & Scalability
+% ----------------------------------------------------------------
+\begin{frame}{Results \& Scalability}
+    \begin{columns}
+        \begin{column}{0.45\textwidth}
+            \textbf{Algorithm Performance:}
+            \begin{itemize}
+                \item \textbf{B\&B:} Exact but limited to small instances ($< 30$ customers).
+                \item \textbf{GA:} Extremely fast, consistent runtimes ($< 4$ seconds) largely due to the powerful heuristic seeding.
+                \item \textbf{SA:} Scales linearly but fine-tunes solutions extensively via dense neighborhood exploration.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.55\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{figures/fig5_runtime.png}
+                \caption{Algorithm Runtime Comparison}
+            \end{figure}
+        \end{column}
+    \end{columns}
 \end{frame}
 
 % ----------------------------------------------------------------
@@ -205,9 +372,11 @@
         \end{column}
         \begin{column}{0.45\textwidth}
             % \note{Insert a screenshot of the Web UI Cockpit here, specifically showing the central 3D plane and left configuration panel.}
-            \begin{center}
-                \includegraphics[width=\textwidth]{"website picture.png"}
-            \end{center}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{figures/web.png}
+                \caption{Interactive Web-Based Solver Interface}
+            \end{figure}
         \end{column}
     \end{columns}
 \end{frame}
@@ -232,4 +401,3 @@
 \end{frame}
 
 \end{document}
-    
