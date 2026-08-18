@@ -1,7 +1,58 @@
+# Python bytecode and tooling
 __pycache__/
+*.py[cod]
+*.pyd
 .pytest_cache/
-*.pyc
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
 .venv/
 venv/
-node_modules
+env/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# JavaScript dependencies and build output
+node_modules/
+web/dist/
+web/coverage/
+
+# Project-generated output
 data/solver_runs/
+data/validation_reports/
+*_interactive.html
+docs/figures/fig*_convergence.png
+
+# LaTeX build output
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
